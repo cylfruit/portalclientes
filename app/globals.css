@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "MontserratPortal";
+  src: url("/brand/Montserrat-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "StonerPortal";
+  src: url("/brand/stoner.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #fbf8ef;
+  --foreground: #181511;
+  --cyl-black: #0d0d0d;
+  --cyl-graphite: #191919;
+  --cyl-ink: #211c14;
+  --cyl-paper: #fbf8ef;
+  --cyl-paper-strong: #f6efdf;
+  --cyl-gold: #f2c65c;
+  --cyl-gold-soft: #f6e0a6;
+  --cyl-line: rgba(33, 28, 20, 0.1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-cyl-black: var(--cyl-black);
+  --color-cyl-graphite: var(--cyl-graphite);
+  --color-cyl-ink: var(--cyl-ink);
+  --color-cyl-paper: var(--cyl-paper);
+  --color-cyl-paper-strong: var(--cyl-paper-strong);
+  --color-cyl-gold: var(--cyl-gold);
+  --color-cyl-gold-soft: var(--cyl-gold-soft);
+  --color-cyl-line: var(--cyl-line);
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    "MontserratPortal", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+::selection {
+  background: rgba(242, 198, 92, 0.32);
+}
+
+a {
+  color: inherit;
+}
+
+.portal-display {
+  font-family: "StonerPortal", Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0.03em;
+}
+
+.panel {
+  border-radius: 1.75rem;
+  border: 1px solid rgba(33, 28, 20, 0.08);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 24px 48px rgba(17, 11, 2, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.dark-panel {
+  border-radius: 1.75rem;
+  border: 1px solid rgba(242, 198, 92, 0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(27, 27, 27, 0.94),
+    rgba(10, 10, 10, 0.96)
+  );
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.metric-card {
+  border-radius: 1.5rem;
+  border: 1px solid rgba(33, 28, 20, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96),
+    rgba(246, 239, 223, 0.9)
+  );
+  box-shadow: 0 18px 40px rgba(17, 11, 2, 0.07);
+}
+
+.section-kicker {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.chip {
+  border-radius: 999px;
+  border: 1px solid rgba(242, 198, 92, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.55rem 0.9rem;
+  color: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(10px);
+}
+
+.table-shell {
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(33, 28, 20, 0.08);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.table-shell table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-shell th,
+.table-shell td {
+  padding: 0.95rem 1rem;
+  border-bottom: 1px solid rgba(33, 28, 20, 0.08);
+  vertical-align: top;
+}
+
+.table-shell th {
+  background: rgba(242, 198, 92, 0.16);
+  color: #4b3b14;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.table-shell tr:last-child td {
+  border-bottom: 0;
+}
