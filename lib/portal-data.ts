@@ -86,20 +86,73 @@ export type ShipmentSummary = {
   documents: DocumentSummary[];
 };
 
+export type TrackingRoutePoint = {
+  label: string;
+  latitude: number;
+  longitude: number;
+  state: "completed" | "active" | "planned";
+  date: string | null;
+  description: string | null;
+};
+
+export type ContainerTrackingSnapshot = {
+  containerNumber: string;
+  statusCode: string;
+  statusLabel: string;
+  trackedAt: string | null;
+  locationSource: string;
+  progressPercentage: number | null;
+  currentLatitude: number;
+  currentLongitude: number;
+  originName: string;
+  originLatitude: number | null;
+  originLongitude: number | null;
+  destinationName: string;
+  destinationLatitude: number | null;
+  destinationLongitude: number | null;
+  etaReference: string | null;
+  etaReferenceType: string | null;
+  vesselName: string;
+  lastEventLocationName: string | null;
+  lastEventStatus: string | null;
+  lastEventDescription: string | null;
+  lastEventDate: string | null;
+  totalDistanceKm: number | null;
+  completedDistanceKm: number | null;
+  remainingDistanceKm: number | null;
+  routePoints: TrackingRoutePoint[];
+};
+
+export type TrackedShipmentItem = {
+  shipment: ShipmentSummary;
+  tracking: ContainerTrackingSnapshot;
+  trackingMatchScope: "container" | "vessel";
+};
+
 export type PortalClientUser = {
   id: string;
   fullName: string;
   username: string;
   email: string;
+  roleKey: "client" | "receiver" | "receiver_admin" | "admin" | "superuser";
   role: string;
+  locale: "es" | "en";
   recipientCode: string;
   recipientName: string;
   groupCode: string;
+  canViewAll: boolean;
   modules: string[];
   status: "Activo" | "Pendiente" | "Bloqueado";
   lastAccess: string;
   twoFactor: boolean;
   scope: string;
+};
+
+export type PortalReceiver = {
+  code: string;
+  name: string;
+  rut: string | null;
+  season: string | null;
 };
 
 export const embarqueRows: EmbarqueRow[] = [
@@ -391,10 +444,13 @@ export const clientUsers: PortalClientUser[] = [
     fullName: "Camila Robles",
     username: "crobles_rbc",
     email: "camila.robles@rbcfresh.eu",
+    roleKey: "receiver_admin",
     role: "Administrador cliente",
+    locale: "es",
     recipientCode: "REC-EU-14",
     recipientName: "RBC Fresh Europe",
     groupCode: "EU-NORTH",
+    canViewAll: false,
     modules: ["Embarques", "Pallets", "Documentos", "Usuarios"],
     status: "Activo",
     lastAccess: "18 may 2026 · 08:42",
@@ -406,10 +462,13 @@ export const clientUsers: PortalClientUser[] = [
     fullName: "Lars Van Dijk",
     username: "lvdijk_qc",
     email: "lars.vandijk@rbcfresh.eu",
+    roleKey: "receiver",
     role: "Supervisor de calidad",
+    locale: "en",
     recipientCode: "REC-EU-14",
     recipientName: "RBC Fresh Europe",
     groupCode: "EU-NORTH",
+    canViewAll: false,
     modules: ["Embarques", "Pallets", "Documentos"],
     status: "Activo",
     lastAccess: "17 may 2026 · 19:10",
@@ -421,45 +480,54 @@ export const clientUsers: PortalClientUser[] = [
     fullName: "Megan Foster",
     username: "mfoster_ops",
     email: "megan.foster@sunfieldproduce.com",
-    role: "Coordinador recibidor",
+    roleKey: "receiver_admin",
+    role: "Administrador cliente",
+    locale: "en",
     recipientCode: "REC-US-05",
     recipientName: "Sunfield Produce",
     groupCode: "USA-WEST",
+    canViewAll: false,
     modules: ["Embarques", "Pallets", "Documentos", "Alertas"],
     status: "Activo",
     lastAccess: "18 may 2026 · 06:55",
     twoFactor: false,
-    scope: "Recibidor y alertas",
+    scope: "Todo el recibidor",
   },
   {
     id: "USR-004",
     fullName: "Omar Al Nuaimi",
     username: "onuaimi_gulf",
     email: "omar.alnuaimi@gulforchard.ae",
+    roleKey: "receiver_admin",
     role: "Administrador cliente",
+    locale: "en",
     recipientCode: "REC-ME-03",
     recipientName: "Gulf Orchard Trading",
     groupCode: "MEA",
+    canViewAll: false,
     modules: ["Embarques", "Pallets", "Documentos"],
     status: "Pendiente",
     lastAccess: "Invitacion enviada",
     twoFactor: false,
-    scope: "Grupo completo",
+    scope: "Todo el recibidor",
   },
   {
     id: "USR-005",
     fullName: "Sandra Mella",
     username: "smella_internal",
     email: "sandra.mella@cylfruit.cl",
-    role: "Backoffice comercial",
+    roleKey: "superuser",
+    role: "Superusuario",
+    locale: "es",
     recipientCode: "MULTI",
     recipientName: "Vista transversal",
     groupCode: "GLOBAL",
+    canViewAll: true,
     modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
     status: "Bloqueado",
     lastAccess: "14 may 2026 · 12:21",
     twoFactor: true,
-    scope: "Soporte interno",
+    scope: "Vista global",
   },
 ];
 
@@ -612,26 +680,43 @@ export const portalMetrics = {
   ),
 };
 
-const numberFormatter = new Intl.NumberFormat("es-CL", {
-  maximumFractionDigits: 0,
-});
-
-const dateFormatter = new Intl.DateTimeFormat("es-CL", {
-  day: "2-digit",
-  month: "short",
-});
-
-export function formatNumber(value: number | null | undefined) {
-  return numberFormatter.format(value ?? 0);
+function getDisplayLocaleTag(locale: "es" | "en" = "es") {
+  return locale === "en" ? "en-US" : "es-CL";
 }
 
-export function formatWeight(value: number | null | undefined) {
-  return `${formatNumber(value)} kg`;
+function getNumberFormatter(locale: "es" | "en" = "es") {
+  return new Intl.NumberFormat(getDisplayLocaleTag(locale), {
+    maximumFractionDigits: 0,
+  });
 }
 
-export function formatDate(value: string | null | undefined) {
+function getDateFormatter(locale: "es" | "en" = "es") {
+  return new Intl.DateTimeFormat(getDisplayLocaleTag(locale), {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+export function formatNumber(
+  value: number | null | undefined,
+  locale: "es" | "en" = "es",
+) {
+  return getNumberFormatter(locale).format(value ?? 0);
+}
+
+export function formatWeight(
+  value: number | null | undefined,
+  locale: "es" | "en" = "es",
+) {
+  return `${formatNumber(value, locale)} kg`;
+}
+
+export function formatDate(
+  value: string | null | undefined,
+  locale: "es" | "en" = "es",
+) {
   if (!value) {
-    return "Por confirmar";
+    return locale === "en" ? "Pending" : "Por confirmar";
   }
 
   const parsedDate = new Date(`${value}T00:00:00`);
@@ -640,10 +725,17 @@ export function formatDate(value: string | null | undefined) {
     return value;
   }
 
-  return dateFormatter.format(parsedDate);
+  return getDateFormatter(locale).format(parsedDate);
 }
 
 export const portalUserRoleBlueprint = [
+  {
+    name: "Cliente",
+    scope: "Solo sus datos",
+    description:
+      "Consulta sus embarques, documentos y trazabilidad solo para el CodRecibidor asignado, sin heredar acceso por grupo.",
+    modules: ["Embarques", "Pallets", "Documentos"],
+  },
   {
     name: "Administrador cliente",
     scope: "Grupo completo",
@@ -659,10 +751,17 @@ export const portalUserRoleBlueprint = [
     modules: ["Embarques", "Pallets", "Documentos"],
   },
   {
-    name: "Backoffice comercial",
-    scope: "Vista transversal",
+    name: "Administrador interno",
+    scope: "Operacion transversal",
     description:
-      "Perfil interno para soporte, onboarding y revision de incidencias de clientes.",
+      "Perfil interno para soporte comercial, onboarding de recibidores y gestion de incidencias.",
+    modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
+  },
+  {
+    name: "Superusuario",
+    scope: "Vista global",
+    description:
+      "Puede ver todos los embarques, administrar usuarios, cambiar scopes y anular restricciones por recibidor.",
     modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
   },
 ];
@@ -670,54 +769,82 @@ export const portalUserRoleBlueprint = [
 export const portalUserSchema = [
   {
     name: "Id",
-    type: "UInt64",
-    purpose: "Identificador tecnico del usuario cliente.",
+    type: "uniqueidentifier",
+    purpose: "Identificador tecnico del usuario del portal cliente.",
   },
   {
     name: "Username",
-    type: "String",
-    purpose: "Login visible para el recibidor o cliente.",
+    type: "nvarchar(80)",
+    purpose: "Login visible y unico para el usuario cliente.",
   },
   {
     name: "PasswordHash",
-    type: "String",
-    purpose: "Hash BCrypt o Argon2 del acceso cliente.",
+    type: "nvarchar(255)",
+    purpose: "Hash Argon2id o BCrypt; nunca almacenar la clave plana.",
   },
   {
-    name: "NombreCompleto",
-    type: "String",
+    name: "RoleKey",
+    type: "nvarchar(40)",
+    purpose:
+      "Rol operativo: client, receiver, receiver_admin, admin o superuser.",
+  },
+  {
+    name: "PreferredLocale",
+    type: "char(2)",
+    purpose: "Idioma base del portal para la sesion del usuario: es o en.",
+  },
+  {
+    name: "FullName",
+    type: "nvarchar(180)",
     purpose: "Nombre de contacto que se muestra en el mantenedor.",
   },
   {
     name: "Email",
-    type: "String",
+    type: "nvarchar(180)",
     purpose: "Correo para invitaciones, alertas y recuperacion.",
   },
   {
-    name: "CodRecibidor",
-    type: "String",
-    purpose: "Filtro principal para mostrar embarques del cliente.",
-  },
-  {
-    name: "CodigoGrupoRecibidor",
-    type: "String",
-    purpose: "Permite agrupar clientes con multiples recibidores o filiales.",
-  },
-  {
-    name: "Modulos",
-    type: "Array(String)",
+    name: "CanViewAll",
+    type: "bit",
     purpose:
-      "Lista de modulos visibles: Embarques, Pallets, Documentos y Usuarios.",
+      "Bandera para administracion interna o superusuarios con vista global.",
   },
   {
-    name: "Activo",
-    type: "UInt8",
+    name: "AllowedRecipientCodes",
+    type: "tabla relacionada",
+    purpose:
+      "Lista de CodRecibidor y CodigoGrupoRecibidor autorizados para el usuario.",
+  },
+  {
+    name: "Modules",
+    type: "nvarchar(max) / JSON",
+    purpose:
+      "Modulos visibles: Embarques, Pallets, Documentos, Usuarios, Alertas.",
+  },
+  {
+    name: "TwoFactorEnabled",
+    type: "bit",
+    purpose: "Obliga doble factor para perfiles sensibles o internos.",
+  },
+  {
+    name: "RefreshTokenVersion",
+    type: "int",
+    purpose:
+      "Version de invalidacion para JWT refresh y cierre de sesiones comprometidas.",
+  },
+  {
+    name: "RequiresPasswordReset",
+    type: "bit",
+    purpose: "Fuerza cambio de clave en primer ingreso o despues de un reset.",
+  },
+  {
+    name: "IsActive",
+    type: "bit",
     purpose: "Bandera de habilitacion operacional del acceso.",
   },
   {
-    name: "Version",
-    type: "DateTime",
-    purpose:
-      "Columna de versionado para lecturas consistentes si se usa ReplacingMergeTree.",
+    name: "UpdatedUtc",
+    type: "datetime2",
+    purpose: "Timestamp para auditoria, revocacion y cache de permisos.",
   },
 ];

@@ -1,6 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import {
+  readCsrfTokenFromCookies,
+  readSessionClaimsFromCookies,
+} from "@/lib/auth";
+import { isPortalAdminRole } from "@/lib/auth-session";
 
 type PortalShellProps = {
   activePath: "/" | "/usuarios";
@@ -10,41 +15,100 @@ type PortalShellProps = {
   children: ReactNode;
 };
 
-const navigation = [
-  { href: "/", label: "Inicio", key: "inicio", icon: <HomeIcon /> },
-  {
-    href: "/#embarques",
-    label: "Embarques",
-    key: "embarques",
-    icon: <ShipIcon />,
+const shellCopy = {
+  es: {
+    brandTitle: "Portal de Clientes",
+    brandKicker: "Portal cliente C&L",
+    authenticatedClient: "Cliente autenticado",
+    users: "Usuarios",
+    logout: "Salir",
+    footerDescription:
+      "Embarques, documentos y trazabilidad de fruta en una interfaz alineada visualmente con el portal principal de C&L.",
+    chips: ["Embarques", "Pallets", "Documentos", "Accesos"],
+    navigation: [
+      { href: "/", label: "Inicio", key: "inicio", icon: <HomeIcon /> },
+      {
+        href: "/#embarques",
+        label: "Embarques",
+        key: "embarques",
+        icon: <ShipIcon />,
+      },
+      {
+        href: "/#tracking",
+        label: "Tracking",
+        key: "tracking",
+        icon: <PinIcon />,
+      },
+      {
+        href: "/#documentos",
+        label: "Documentos",
+        key: "documentos",
+        icon: <DocumentIcon />,
+      },
+      {
+        href: "/usuarios",
+        label: "Usuarios",
+        key: "usuarios",
+        icon: <UsersIcon />,
+      },
+    ],
   },
-  {
-    href: "/#tracking",
-    label: "Tracking",
-    key: "tracking",
-    icon: <PinIcon />,
+  en: {
+    brandTitle: "Client Portal",
+    brandKicker: "C&L client portal",
+    authenticatedClient: "Authenticated client",
+    users: "Users",
+    logout: "Sign out",
+    footerDescription:
+      "Shipments, documents, and fruit traceability in an interface visually aligned with the main C&L portal.",
+    chips: ["Shipments", "Pallets", "Documents", "Access"],
+    navigation: [
+      { href: "/", label: "Home", key: "inicio", icon: <HomeIcon /> },
+      {
+        href: "/#embarques",
+        label: "Shipments",
+        key: "embarques",
+        icon: <ShipIcon />,
+      },
+      {
+        href: "/#tracking",
+        label: "Tracking",
+        key: "tracking",
+        icon: <PinIcon />,
+      },
+      {
+        href: "/#documentos",
+        label: "Documents",
+        key: "documentos",
+        icon: <DocumentIcon />,
+      },
+      {
+        href: "/usuarios",
+        label: "Users",
+        key: "usuarios",
+        icon: <UsersIcon />,
+      },
+    ],
   },
-  {
-    href: "/#documentos",
-    label: "Documentos",
-    key: "documentos",
-    icon: <DocumentIcon />,
-  },
-  {
-    href: "/usuarios",
-    label: "Usuarios",
-    key: "usuarios",
-    icon: <UsersIcon />,
-  },
-];
+} as const;
 
-export function PortalShell({
+export async function PortalShell({
   activePath,
   heading,
   description,
   aside,
   children,
 }: PortalShellProps) {
+  const sessionClaims = await readSessionClaimsFromCookies();
+  const csrfToken = await readCsrfTokenFromCookies();
+  const locale = sessionClaims?.preferredLocale === "en" ? "en" : "es";
+  const copy = shellCopy[locale];
+  const canManageUsers = sessionClaims
+    ? isPortalAdminRole(sessionClaims.roleKey)
+    : false;
+  const visibleNavigation = canManageUsers
+    ? copy.navigation
+    : copy.navigation.filter((item) => item.key !== "usuarios");
   const activeKey = activePath === "/usuarios" ? "usuarios" : "embarques";
 
   return (
@@ -73,14 +137,14 @@ export function PortalShell({
               />
               <div className="min-w-0">
                 <p className="text-xl font-black leading-none text-white sm:text-2xl">
-                  Portal de Clientes
+                  {copy.brandTitle}
                 </p>
                 <p className="mt-1 text-sm text-white/68">C&amp;L Fruit</p>
               </div>
             </Link>
 
             <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isActive = item.key === activeKey;
 
                 return (
@@ -109,20 +173,25 @@ export function PortalShell({
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyl-gold/16 text-cyl-gold">
                   <UserIcon />
                 </span>
-                cliente demo
+                {sessionClaims?.fullName ?? copy.authenticatedClient}
               </div>
-              <Link
-                href="/usuarios"
-                className="rounded-full border border-white/20 bg-white/6 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                Perfil
-              </Link>
-              <Link
-                href="/"
-                className="rounded-full border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                Salir
-              </Link>
+              {canManageUsers ? (
+                <Link
+                  href="/usuarios"
+                  className="rounded-full border border-white/20 bg-white/6 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  {copy.users}
+                </Link>
+              ) : null}
+              <form action="/api/auth/logout" method="post">
+                <input type="hidden" name="csrfToken" value={csrfToken ?? ""} />
+                <button
+                  type="submit"
+                  className="rounded-full border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  {copy.logout}
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -150,7 +219,7 @@ export function PortalShell({
         >
           <div className="space-y-4">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyl-gold-soft/78">
-              Portal cliente C&amp;L
+              {copy.brandKicker}
             </p>
             <h1
               className={`portal-display max-w-4xl leading-none text-white ${aside ? "text-5xl sm:text-6xl lg:text-7xl" : "text-[3.4rem] sm:text-[4.3rem]"}`}
@@ -193,28 +262,23 @@ export function PortalShell({
             />
             <div>
               <p className="text-lg font-semibold text-white sm:text-xl">
-                Portal de Clientes
+                {copy.brandTitle}
               </p>
               <p className="max-w-2xl leading-6 text-white/68">
-                Embarques, documentos y trazabilidad de fruta en una interfaz
-                alineada visualmente con el portal principal de C&amp;L.
+                {copy.footerDescription}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/55">
-            <span className="rounded-full border border-white/10 px-3 py-2">
-              Embarques
-            </span>
-            <span className="rounded-full border border-white/10 px-3 py-2">
-              Pallets
-            </span>
-            <span className="rounded-full border border-white/10 px-3 py-2">
-              Documentos
-            </span>
-            <span className="rounded-full border border-white/10 px-3 py-2">
-              Accesos
-            </span>
+            {copy.chips.map((chip) => (
+              <span
+                key={chip}
+                className="rounded-full border border-white/10 px-3 py-2"
+              >
+                {chip}
+              </span>
+            ))}
           </div>
         </div>
       </footer>

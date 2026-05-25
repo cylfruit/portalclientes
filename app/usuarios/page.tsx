@@ -1,33 +1,98 @@
 import Link from "next/link";
+import { readCsrfTokenFromCookies, requireAdminPortalUser } from "@/lib/auth";
+import { PortalUsersAdmin } from "@/components/portal-users-admin";
 import { PortalShell } from "@/components/portal-shell";
+import { fetchPortalClientUsers, fetchPortalReceivers } from "@/lib/clickhouse";
 import {
   clientUsers,
-  portalMetrics,
+  type PortalClientUser,
+  type PortalReceiver,
   portalUserRoleBlueprint,
   portalUserSchema,
 } from "@/lib/portal-data";
 
-function userStatusClasses(status: string) {
-  switch (status) {
-    case "Activo":
-      return "bg-emerald-50 text-emerald-700";
-    case "Bloqueado":
-      return "bg-rose-50 text-rose-700";
-    default:
-      return "bg-amber-50 text-amber-700";
+export const dynamic = "force-dynamic";
+
+async function loadPortalUsers() {
+  try {
+    const users = await fetchPortalClientUsers();
+
+    return {
+      users,
+      errorMessage: null,
+      dataSourceLabel: "ClickHouse",
+    };
+  } catch (error) {
+    console.error("Failed to load portal users from ClickHouse", error);
+
+    return {
+      users: clientUsers,
+      errorMessage:
+        "La tabla PortalClientUsers aun no esta disponible en ClickHouse. La pantalla sigue usando datos de respaldo locales hasta que ejecutes el SQL del proyecto.",
+      dataSourceLabel: "Fallback local",
+    };
   }
 }
 
-export default function UsersPage() {
-  const activeUsers = clientUsers.filter(
-    (user) => user.status === "Activo",
-  ).length;
-  const enabledSecondFactor = clientUsers.filter(
-    (user) => user.twoFactor,
-  ).length;
-  const pendingUsers = clientUsers.filter(
+function buildReceiversFallback(users: PortalClientUser[]): PortalReceiver[] {
+  const uniqueReceivers = new Map<string, PortalReceiver>();
+
+  users.forEach((user) => {
+    if (!user.recipientCode || user.recipientCode === "MULTI") {
+      return;
+    }
+
+    if (!uniqueReceivers.has(user.recipientCode)) {
+      uniqueReceivers.set(user.recipientCode, {
+        code: user.recipientCode,
+        name: user.recipientName,
+        rut: null,
+        season: null,
+      });
+    }
+  });
+
+  return Array.from(uniqueReceivers.values()).sort((left, right) => {
+    const nameOrder = left.name.localeCompare(right.name, "es");
+    return nameOrder !== 0
+      ? nameOrder
+      : left.code.localeCompare(right.code, "es");
+  });
+}
+
+async function loadPortalReceivers(users: PortalClientUser[]) {
+  try {
+    const receivers = await fetchPortalReceivers();
+
+    return {
+      receivers,
+      receiverCatalogLabel: "PortalClientes.RECIBIDORES",
+    };
+  } catch (error) {
+    console.error("Failed to load receivers from ClickHouse view", error);
+
+    return {
+      receivers: buildReceiversFallback(users),
+      receiverCatalogLabel: "Usuarios ya configurados",
+    };
+  }
+}
+
+export default async function UsersPage() {
+  await requireAdminPortalUser("/usuarios");
+  const { users, errorMessage, dataSourceLabel } = await loadPortalUsers();
+  const { receivers, receiverCatalogLabel } = await loadPortalReceivers(users);
+  const csrfToken = await readCsrfTokenFromCookies();
+  const activeUsers = users.filter((user) => user.status === "Activo").length;
+  const enabledSecondFactor = users.filter((user) => user.twoFactor).length;
+  const pendingUsers = users.filter(
     (user) => user.status === "Pendiente",
   ).length;
+  const coveredRecipients = new Set(
+    users
+      .map((user) => user.recipientCode)
+      .filter((recipientCode) => recipientCode && recipientCode !== "MULTI"),
+  ).size;
 
   return (
     <PortalShell
@@ -44,7 +109,7 @@ export default function UsersPage() {
           </h2>
           <p className="mt-3 text-sm leading-6 text-white/78">
             Base sugerida para controlar acceso por CodRecibidor,
-            CodigoGrupoRecibidor, modulos y doble factor.
+            CodigoGrupoRecibidor, idioma, JWT refresh y doble factor.
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -70,8 +135,8 @@ export default function UsersPage() {
               <p>Filtros naturales: CodRecibidor y CodigoGrupoRecibidor.</p>
               <p>Slice visible: embarques, pallets, documentos y alertas.</p>
               <p>
-                Escala inicial: {portalMetrics.recipients} recibidores en esta
-                demo.
+                Fuente actual: {dataSourceLabel} sobre {coveredRecipients}{" "}
+                recibidores configurados.
               </p>
             </div>
             <Link
@@ -84,163 +149,16 @@ export default function UsersPage() {
         </div>
       }
     >
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="metric-card p-5">
-          <p className="section-kicker text-cyl-gold">Usuarios activos</p>
-          <p className="mt-4 text-4xl font-semibold text-cyl-ink">
-            {activeUsers}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-cyl-ink/68">
-            Accesos listos para entrar y consultar sus embarques visibles.
-          </p>
-        </article>
-
-        <article className="metric-card p-5">
-          <p className="section-kicker text-cyl-gold">Recibidores cubiertos</p>
-          <p className="mt-4 text-4xl font-semibold text-cyl-ink">
-            {portalMetrics.recipients}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-cyl-ink/68">
-            Un usuario puede limitarse a un recibidor o abarcar todo el grupo
-            comercial.
-          </p>
-        </article>
-
-        <article className="metric-card p-5">
-          <p className="section-kicker text-cyl-gold">2FA disponible</p>
-          <p className="mt-4 text-4xl font-semibold text-cyl-ink">
-            {enabledSecondFactor}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-cyl-ink/68">
-            Habilitado para perfiles de administracion cliente y supervisores
-            internos.
-          </p>
-        </article>
-
-        <article className="metric-card p-5">
-          <p className="section-kicker text-cyl-gold">Usuarios pendientes</p>
-          <p className="mt-4 text-4xl font-semibold text-cyl-ink">
-            {pendingUsers}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-cyl-ink/68">
-            Invitaciones listas para activarse cuando el cliente reciba sus
-            credenciales.
-          </p>
-        </article>
-      </section>
+      <PortalUsersAdmin
+        initialUsers={users}
+        initialReceivers={receivers}
+        initialErrorMessage={errorMessage}
+        initialDataSourceLabel={dataSourceLabel}
+        receiverCatalogLabel={receiverCatalogLabel}
+        csrfToken={csrfToken}
+      />
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="panel p-6 sm:p-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="section-kicker text-cyl-gold">Mantenedor</p>
-              <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
-                Tabla para configurar usuarios cliente
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-cyl-ink/72">
-                Este slice deja lista la pantalla que Comercial puede usar para
-                crear, bloquear o ajustar el alcance de cada recibidor dentro
-                del portal.
-              </p>
-            </div>
-
-            <Link
-              href="/"
-              className="rounded-full border border-cyl-gold/35 px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:bg-cyl-gold hover:text-cyl-black"
-            >
-              Ver embarques
-            </Link>
-          </div>
-
-          <div className="table-shell mt-6 overflow-x-auto">
-            <table>
-              <thead>
-                <tr>
-                  <th>Usuario</th>
-                  <th>Recibidor</th>
-                  <th>Perfil</th>
-                  <th>Modulos</th>
-                  <th>Estado</th>
-                  <th>Ultimo acceso</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientUsers.map((user) => (
-                  <tr key={user.id}>
-                    <td>
-                      <div className="font-semibold text-cyl-ink">
-                        {user.fullName}
-                      </div>
-                      <div className="mt-1 text-sm text-cyl-ink/60">
-                        {user.email}
-                      </div>
-                      <div className="mt-1 text-sm text-cyl-ink/60">
-                        {user.username}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="font-semibold text-cyl-ink">
-                        {user.recipientName}
-                      </div>
-                      <div className="mt-1 text-sm text-cyl-ink/60">
-                        {user.recipientCode} · {user.groupCode}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="font-semibold text-cyl-ink">
-                        {user.role}
-                      </div>
-                      <div className="mt-1 text-sm text-cyl-ink/60">
-                        {user.scope}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap gap-2">
-                        {user.modules.map((module) => (
-                          <span
-                            key={`${user.id}-${module}`}
-                            className="rounded-full border border-cyl-gold/25 bg-white px-3 py-1 text-xs font-semibold text-cyl-ink"
-                          >
-                            {module}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${userStatusClasses(
-                          user.status,
-                        )}`}
-                      >
-                        {user.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="font-semibold text-cyl-ink">
-                        {user.lastAccess}
-                      </div>
-                      <div className="mt-1 text-sm text-cyl-ink/60">
-                        {user.twoFactor ? "2FA activo" : "Sin 2FA"}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap gap-2">
-                        <button className="rounded-full border border-cyl-line px-3 py-1 text-xs font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong">
-                          Editar
-                        </button>
-                        <button className="rounded-full border border-cyl-line px-3 py-1 text-xs font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong">
-                          Reset
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <div className="space-y-6">
           <div className="panel p-6 sm:p-7">
             <p className="section-kicker text-cyl-gold">Perfiles sugeridos</p>
@@ -287,9 +205,9 @@ export default function UsersPage() {
               Campos para la tabla de accesos
             </h2>
             <p className="mt-2 text-sm leading-6 text-cyl-ink/72">
-              Base recomendada para persistir los usuarios de recibidores antes
-              de conectar la autenticacion real y el filtro directo hacia
-              `vw_Embarques_pc`.
+              Referencia de campos persistidos para los usuarios de recibidores,
+              integrados con autenticacion JWT, CSRF y filtros directos sobre el
+              portal.
             </p>
 
             <div className="table-shell mt-6 overflow-x-auto">
@@ -324,6 +242,39 @@ export default function UsersPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+
+        <div className="panel p-6 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="section-kicker text-cyl-gold">Operacion</p>
+              <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
+                Accesos conectados al portal
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-cyl-ink/72">
+                Los formularios y acciones de esta pantalla llaman a las APIs
+                internas del portal usando la sesion activa y el token CSRF.
+              </p>
+            </div>
+
+            <Link
+              href="/"
+              className="rounded-full border border-cyl-gold/35 px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:bg-cyl-gold hover:text-cyl-black"
+            >
+              Ver embarques
+            </Link>
+          </div>
+
+          <div className="mt-6 rounded-[1.4rem] border border-cyl-line bg-cyl-paper-strong/55 p-5 text-sm leading-6 text-cyl-ink/72">
+            <p>
+              Usa el formulario para crear cuentas nuevas, editar perfiles o
+              bloquear accesos sin salir del panel.
+            </p>
+            <p className="mt-3">
+              La lectura y las mutaciones consumen `/api/portal-users` y
+              `/api/portal-users/[userId]` dentro del mismo proyecto.
+            </p>
           </div>
         </div>
       </section>
