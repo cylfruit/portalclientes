@@ -8,7 +8,11 @@ import {
   createPortalSessionToken,
   requireValidCsrfToken,
 } from "@/lib/auth";
-import { sanitizeNextPath, setSessionCookie } from "@/lib/auth-session";
+import {
+  buildRequestUrl,
+  sanitizeNextPath,
+  setSessionCookie,
+} from "@/lib/auth-session";
 import {
   updatePortalClientUserRecord,
   verifyPortalUserPassword,
@@ -23,7 +27,7 @@ function redirectToLogin(
   error: string,
 ) {
   return NextResponse.redirect(
-    new URL(buildLoginPath(nextPath, error), request.url),
+    buildRequestUrl(request, buildLoginPath(nextPath, error)),
     { status: 303 },
   );
 }
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
 
   await upsertPortalClientUserRecord(updatedUser);
 
-  const response = NextResponse.redirect(new URL(nextPath, request.url), {
+  const response = NextResponse.redirect(buildRequestUrl(request, nextPath), {
     status: 303,
   });
   setSessionCookie(response, await createPortalSessionToken(updatedUser));

@@ -75,8 +75,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <p className="max-w-xl text-base leading-7 text-white/76 sm:text-lg">
             El portal ahora exige autenticacion para cada ingreso. Las sesiones
-            usan JWT en cookie segura, las rutas sensibles quedan protegidas y
-            las mutaciones validan CSRF en el mismo proyecto.
+            usan JWT en cookie de sesion, las rutas sensibles quedan protegidas
+            y las mutaciones validan CSRF en el mismo proyecto.
           </p>
 
           <div className="flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/58">

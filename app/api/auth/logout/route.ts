@@ -4,7 +4,7 @@ import {
   requireAuthenticatedApiUser,
   requireValidCsrfToken,
 } from "@/lib/auth";
-import { clearSessionCookie } from "@/lib/auth-session";
+import { buildRequestUrl, clearSessionCookie } from "@/lib/auth-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +15,12 @@ export async function POST(request: NextRequest) {
   const csrfResponse = requireValidCsrfToken(request, csrfToken);
 
   if (csrfResponse) {
-    return NextResponse.redirect(new URL("/login?error=csrf", request.url), {
-      status: 303,
-    });
+    return NextResponse.redirect(
+      buildRequestUrl(request, "/login?error=csrf"),
+      {
+        status: 303,
+      },
+    );
   }
 
   const auth = await requireAuthenticatedApiUser(request);
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(
-    new URL("/login?logged_out=1", request.url),
+    buildRequestUrl(request, "/login?logged_out=1"),
     { status: 303 },
   );
   clearSessionCookie(response);

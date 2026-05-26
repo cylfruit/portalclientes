@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  buildRequestUrl,
   ensureCsrfCookie,
   isPortalAdminRole,
   readSessionTokenFromRequest,
@@ -48,9 +49,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.json({ message: "No autenticado." }, { status: 401 });
     }
 
-    const loginUrl = new URL(
+    const loginUrl = buildRequestUrl(
+      request,
       `/login?next=${encodeURIComponent(sanitizeNextPath(`${pathname}${search}`))}`,
-      request.url,
     );
 
     return ensureCsrfCookie(request, NextResponse.redirect(loginUrl));
@@ -66,7 +67,7 @@ export async function proxy(request: NextRequest) {
 
     return ensureCsrfCookie(
       request,
-      NextResponse.redirect(new URL("/", request.url)),
+      NextResponse.redirect(buildRequestUrl(request, "/")),
     );
   }
 

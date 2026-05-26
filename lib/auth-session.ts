@@ -76,7 +76,7 @@ export function getSessionCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     path: "/",
     maxAge: getSessionMaxAgeSeconds(),
   };
@@ -86,7 +86,7 @@ export function getCsrfCookieOptions() {
   return {
     httpOnly: false,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     path: "/",
     maxAge: getSessionMaxAgeSeconds(),
   };
@@ -149,6 +149,72 @@ export function sanitizeNextPath(nextPath?: string | null) {
   }
 
   return nextPath;
+}
+
+function normalizeOrigin(value: string | null | undefined) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    return new URL(normalized).origin;
+  } catch {
+    return null;
+  }
+}
+
+function readForwardedHeader(request: NextRequest, headerName: string) {
+  const value = request.headers.get(headerName)?.split(",")[0]?.trim();
+  return value ? value : null;
+}
+
+function shouldUseSecureCookies() {
+  const secureMode = process.env.AUTH_COOKIE_SECURE?.trim().toLowerCase();
+
+  if (["1", "true", "always"].includes(secureMode ?? "")) {
+    return true;
+  }
+
+  if (["0", "false", "never"].includes(secureMode ?? "")) {
+    return false;
+  }
+
+  const configuredOrigin =
+    normalizeOrigin(process.env.AUTH_PUBLIC_ORIGIN) ??
+    normalizeOrigin(process.env.APP_PUBLIC_URL);
+
+  if (configuredOrigin) {
+    return configuredOrigin.startsWith("https://");
+  }
+
+  return false;
+}
+
+export function resolveRequestOrigin(request: NextRequest) {
+  const configuredOrigin =
+    normalizeOrigin(process.env.AUTH_PUBLIC_ORIGIN) ??
+    normalizeOrigin(process.env.APP_PUBLIC_URL);
+
+  if (configuredOrigin) {
+    return configuredOrigin;
+  }
+
+  const host =
+    readForwardedHeader(request, "x-forwarded-host") ??
+    readForwardedHeader(request, "host") ??
+    request.nextUrl.host;
+  const protocol =
+    readForwardedHeader(request, "x-forwarded-proto") ??
+    request.nextUrl.protocol.replace(/:$/, "") ??
+    "http";
+
+  return `${protocol}://${host}`;
+}
+
+export function buildRequestUrl(request: NextRequest, pathname: string) {
+  return new URL(pathname, `${resolveRequestOrigin(request)}/`);
 }
 
 export function setSessionCookie(response: NextResponse, token: string) {
