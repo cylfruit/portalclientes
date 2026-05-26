@@ -3,6 +3,7 @@ import {
   type EmbarqueRow,
   type PortalClientUser,
   type PortalReceiver,
+  type ShipmentSeasonOption,
   type TrackingRoutePoint,
 } from "@/lib/portal-data";
 import {
@@ -595,17 +596,36 @@ function serializePortalClientUserRecord(record: PortalClientUserRecord) {
   };
 }
 
-function buildShipmentsQuery() {
+type ShipmentsQueryOptions = {
+  season?: string | null;
+  search?: string | null;
+};
+
+function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
   const view = escapeIdentifier(
     process.env.CLICKHOUSE_VIEW?.trim() || "vw_Embarques_pc",
   );
   const limit = Number(process.env.CLICKHOUSE_QUERY_LIMIT || "500");
-  const defaultSeason = process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
   const safeLimit =
     Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 500;
-  const whereClause = defaultSeason
-    ? `WHERE CodigoTemporada = '${escapeStringLiteral(defaultSeason)}'`
-    : "";
+  const season =
+    options.season?.trim() ?? process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
+  const search = options.search?.trim() ?? null;
+  const conditions: string[] = [];
+
+  if (season) {
+    conditions.push(`CodigoTemporada = '${escapeStringLiteral(season)}'`);
+  }
+
+  if (search) {
+    const escaped = escapeStringLiteral(search);
+    conditions.push(
+      `(positionCaseInsensitive(ifNull(BL, ''), '${escaped}') > 0 OR positionCaseInsensitive(ifNull(Contenedor, ''), '${escaped}') > 0 OR positionCaseInsensitive(ifNull(NomNave, ''), '${escaped}') > 0)`,
+    );
+  }
+
+  const whereClause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const shipmentKeyColumns = [
     "CodigoTemporadaKey",
     "NroEmbarqueKey",
@@ -910,10 +930,52 @@ async function executeClickHouseCommand(query: string) {
   return response.text();
 }
 
-export async function fetchEmbarqueRows() {
-  const payload = await executeClickHouseJsonQuery(buildShipmentsQuery());
+export async function fetchEmbarqueRows(options: ShipmentsQueryOptions = {}) {
+  const payload = await executeClickHouseJsonQuery(
+    buildShipmentsQuery(options),
+  );
 
   return payload.data.map(normalizeRow);
+}
+
+export function resolveDefaultEmbarqueSeasonCode(
+  seasons: ShipmentSeasonOption[],
+) {
+  return (
+    seasons.find((season) => season.isActive)?.code ?? seasons[0]?.code ?? null
+  );
+}
+
+export async function fetchEmbarqueSeasons(): Promise<ShipmentSeasonOption[]> {
+  const table = escapeIdentifier(
+    process.env.CLICKHOUSE_SEASONS_TABLE?.trim() || "default.TEMPORADAS",
+  );
+  const query = [
+    "SELECT id, codigo_temporada, descripcion, Activo",
+    `FROM ${table}`,
+    "WHERE codigo_temporada IS NOT NULL",
+    "  AND trim(BOTH ' ' FROM codigo_temporada) != ''",
+    "ORDER BY toInt32OrZero(Activo) DESC, id DESC",
+    `FORMAT JSON`,
+  ].join("\n");
+
+  const payload = await executeClickHouseJsonQuery(query);
+
+  return payload.data
+    .map((row) => {
+      const code = toStringOrNull(row.codigo_temporada);
+
+      if (!code) {
+        return null;
+      }
+
+      return {
+        code,
+        description: toStringOrNull(row.descripcion) ?? code,
+        isActive: toBoolean(row.Activo),
+      };
+    })
+    .filter((season): season is ShipmentSeasonOption => season !== null);
 }
 
 export async function fetchContainerTrackingSnapshots(

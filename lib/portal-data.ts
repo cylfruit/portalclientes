@@ -86,6 +86,12 @@ export type ShipmentSummary = {
   documents: DocumentSummary[];
 };
 
+export type ShipmentSeasonOption = {
+  code: string;
+  description: string;
+  isActive: boolean;
+};
+
 export type TrackingRoutePoint = {
   label: string;
   latitude: number;
@@ -546,12 +552,24 @@ function sumNullable(values: Array<number | null | undefined>) {
   );
 }
 
+function firstNonEmptyValue(values: Array<string | null | undefined>) {
+  return (
+    values.find(
+      (value) => typeof value === "string" && value.trim().length > 0,
+    ) ?? null
+  );
+}
+
 function resolveShipmentStatus(row: EmbarqueRow): ShipmentSummary["status"] {
-  if (row.Fecha_ATA) {
+  // Fecha_ATA and Fecha_ATD are always populated in the view (ATA = ETA, ATD = ETD).
+  // Compare against today so we only mark as arrived/departed when the date has passed.
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (row.Fecha_ATA && row.Fecha_ATA <= today) {
     return "Arribado";
   }
 
-  if (row.Fecha_ATD) {
+  if (row.Fecha_ATD && row.Fecha_ATD <= today) {
     return "En transito";
   }
 
@@ -564,13 +582,13 @@ function buildShipmentGroupKey(row: EmbarqueRow) {
     row.NroEmbarque ?? "sin-embarque",
     row.CodRecibidor ?? "sin-recibidor",
     row.Contenedor ?? "sin-contenedor",
-    row.BL ?? "sin-bl",
-    row.Booking_AWB ?? "sin-booking",
   ].join("|");
 }
 
 function buildDocuments(rows: EmbarqueRow[]): DocumentSummary[] {
   const firstRow = rows[0];
+  const bl = firstNonEmptyValue(rows.map((row) => row.BL));
+  const booking = firstNonEmptyValue(rows.map((row) => row.Booking_AWB));
   const certificates = collectUnique(
     rows.map((row) => row.NumeroCertificadoProductorEti),
   );
@@ -578,13 +596,13 @@ function buildDocuments(rows: EmbarqueRow[]): DocumentSummary[] {
   return [
     {
       label: "BL",
-      value: firstRow.BL ?? "Pendiente de emision",
-      state: firstRow.BL ? "Emitido" : "Pendiente",
+      value: bl ?? "Pendiente de emision",
+      state: bl ? "Emitido" : "Pendiente",
     },
     {
       label: "Booking / AWB",
-      value: firstRow.Booking_AWB ?? "Pendiente de confirmacion",
-      state: firstRow.Booking_AWB ? "Confirmado" : "Pendiente",
+      value: booking ?? "Pendiente de confirmacion",
+      state: booking ? "Confirmado" : "Pendiente",
     },
     {
       label: "Certificados productor",
@@ -621,6 +639,10 @@ export function buildShipmentsFromRows(rows: EmbarqueRow[]): ShipmentSummary[] {
     }, {}),
   ).map((shipmentRows) => {
     const firstRow = shipmentRows[0];
+    const bl = firstNonEmptyValue(shipmentRows.map((row) => row.BL));
+    const booking = firstNonEmptyValue(
+      shipmentRows.map((row) => row.Booking_AWB),
+    );
 
     return {
       groupKey: buildShipmentGroupKey(firstRow),
@@ -651,8 +673,8 @@ export function buildShipmentsFromRows(rows: EmbarqueRow[]): ShipmentSummary[] {
       producers: collectUnique(shipmentRows.map((row) => row.NomProductorEti)),
       species: collectUnique(shipmentRows.map((row) => row.NomEspecie)),
       varieties: collectUnique(shipmentRows.map((row) => row.NomVariedadEti)),
-      bl: firstRow.BL ?? "Sin BL",
-      booking: firstRow.Booking_AWB ?? "Sin Booking",
+      bl: bl ?? "Sin BL",
+      booking: booking ?? "Sin Booking",
       documents: buildDocuments(shipmentRows),
     };
   });

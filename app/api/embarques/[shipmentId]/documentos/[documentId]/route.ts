@@ -31,8 +31,7 @@ function handleShipmentDocumentFileApiError(error: unknown) {
 
   return NextResponse.json(
     {
-      message:
-        "No fue posible descargar el documento del embarque desde la API segura.",
+      message: "No fue posible descargar el documento del embarque.",
     },
     { status: 500 },
   );
@@ -47,7 +46,10 @@ async function userCanAccessShipment(
     return false;
   }
 
-  const visibleRows = filterRowsForPortalUser(await fetchEmbarqueRows(), user);
+  const visibleRows = filterRowsForPortalUser(
+    await fetchEmbarqueRows({ season }),
+    user,
+  );
 
   return visibleRows.some(
     (row) =>

@@ -1,0 +1,133 @@
+name: CD Docker
+
+on:
+  push:
+    branches: ["master", "main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  APP_SLUG: portalclientes
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image name
+        id: vars
+        shell: bash
+        run: |
+          owner="${{ github.repository_owner }}"
+          owner="$(echo "$owner" | tr '[:upper:]' '[:lower:]')"
+          echo "image_name=ghcr.io/${owner}/${APP_SLUG}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.image_name }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: docker
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - name: Compute runtime values
+        id: vars
+        shell: bash
+        run: |
+          owner="${{ github.repository_owner }}"
+          owner="$(echo "$owner" | tr '[:upper:]' '[:lower:]')"
+          image_name="ghcr.io/${owner}/${APP_SLUG}"
+          app_port="4300"
+          docker_network="observability"
+          backend_url="http://192.168.6.190:1313"
+          echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
+          echo "container_name=${APP_SLUG}" >> "$GITHUB_OUTPUT"
+          echo "app_port=${app_port}" >> "$GITHUB_OUTPUT"
+          echo "docker_network=${docker_network}" >> "$GITHUB_OUTPUT"
+          echo "backend_url=${backend_url}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR (runner local)
+        shell: bash
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Ensure runtime env file
+        id: runtime_env
+        shell: bash
+        env:
+          APP_ENV_FILE: ${{ secrets.APP_ENV_FILE }}
+          BACKEND_URL: ${{ steps.vars.outputs.backend_url }}
+        run: |
+          set -e
+          runtime_dir="${RUNNER_TEMP:-$HOME}/${APP_SLUG}"
+          mkdir -p "$runtime_dir"
+          env_file="$runtime_dir/.env"
+          if [ -n "$APP_ENV_FILE" ]; then
+            printf '%s\n' "$APP_ENV_FILE" > "$env_file"
+            chmod 600 "$env_file"
+          elif [ ! -f "$env_file" ]; then
+            echo "Missing runtime env file ($env_file) and APP_ENV_FILE secret is not set"
+            exit 1
+          fi
+
+          if ! grep -q '^DOCUMENTS_API_BASE_URL=' "$env_file"; then
+            printf 'DOCUMENTS_API_BASE_URL=%s\n' "$BACKEND_URL" >> "$env_file"
+          fi
+
+          echo "env_file=$env_file" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure docker network
+        shell: bash
+        env:
+          DOCKER_NETWORK: ${{ steps.vars.outputs.docker_network }}
+        run: docker network create "$DOCKER_NETWORK" >/dev/null 2>&1 || true
+
+      - name: Pull and restart container
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ steps.vars.outputs.image_name }}
+          CONTAINER_NAME: ${{ steps.vars.outputs.container_name }}
+          ENV_FILE: ${{ steps.runtime_env.outputs.env_file }}
+          APP_PORT: ${{ steps.vars.outputs.app_port }}
+          DOCKER_NETWORK: ${{ steps.vars.outputs.docker_network }}
+        run: |
+          set -e
+          docker pull "$IMAGE_NAME:latest"
+          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          docker run -d \
+            --name "$CONTAINER_NAME" \
+            --restart unless-stopped \
+            --network "$DOCKER_NETWORK" \
+            --env-file "$ENV_FILE" \
+            -e HOST=0.0.0.0 \
+            -e HOSTNAME=0.0.0.0 \
+            -e PORT="$APP_PORT" \
+            -p "$APP_PORT:$APP_PORT" \
+            "$IMAGE_NAME:latest"

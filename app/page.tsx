@@ -1,7 +1,9 @@
 import {
   fetchContainerTrackingSnapshots,
   fetchEmbarqueRows,
+  fetchEmbarqueSeasons,
   fetchVesselTrackingSnapshots,
+  resolveDefaultEmbarqueSeasonCode,
 } from "@/lib/clickhouse";
 import {
   filterRowsForPortalUser,
@@ -17,10 +19,13 @@ async function loadDashboardRows() {
   const locale = currentUser.preferredLocale;
 
   try {
-    const rows = filterRowsForPortalUser(
-      await fetchEmbarqueRows(),
-      currentUser,
-    );
+    const seasons = await fetchEmbarqueSeasons();
+    const defaultSeason =
+      resolveDefaultEmbarqueSeasonCode(seasons) ??
+      process.env.CLICKHOUSE_DEFAULT_SEASON?.trim() ??
+      null;
+    const rawRows = await fetchEmbarqueRows({ season: defaultSeason });
+    const rows = filterRowsForPortalUser(rawRows, currentUser);
     const containers = Array.from(
       new Set(
         rows
@@ -92,6 +97,8 @@ async function loadDashboardRows() {
       trackingSnapshots,
       vesselTrackingSnapshots,
       locale,
+      seasons,
+      defaultSeason,
       errorMessage: null,
       trackingErrorMessage,
     };
@@ -103,6 +110,8 @@ async function loadDashboardRows() {
       trackingSnapshots: [],
       vesselTrackingSnapshots: [],
       locale,
+      seasons: [],
+      defaultSeason: null,
       errorMessage:
         locale === "en"
           ? "Shipments could not be loaded from ClickHouse. Check the database connection and credentials."
@@ -118,6 +127,8 @@ export default async function Home() {
     trackingSnapshots,
     vesselTrackingSnapshots,
     locale,
+    seasons,
+    defaultSeason,
     errorMessage,
     trackingErrorMessage,
   } = await loadDashboardRows();
@@ -135,6 +146,8 @@ export default async function Home() {
         rows={rows}
         trackingSnapshots={trackingSnapshots}
         vesselTrackingSnapshots={vesselTrackingSnapshots}
+        seasons={seasons}
+        defaultSeason={defaultSeason}
         errorMessage={errorMessage}
         trackingErrorMessage={trackingErrorMessage}
       />

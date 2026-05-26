@@ -30,8 +30,7 @@ function handleShipmentDocumentsApiError(error: unknown) {
 
   return NextResponse.json(
     {
-      message:
-        "No fue posible consultar los documentos del embarque en la API segura.",
+      message: "No fue posible consultar los documentos del embarque.",
     },
     { status: 500 },
   );
@@ -46,7 +45,10 @@ async function userCanAccessShipment(
     return false;
   }
 
-  const visibleRows = filterRowsForPortalUser(await fetchEmbarqueRows(), user);
+  const visibleRows = filterRowsForPortalUser(
+    await fetchEmbarqueRows({ season }),
+    user,
+  );
 
   return visibleRows.some(
     (row) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useEffect } from "react";
+import { Fragment, memo, useMemo, useEffect } from "react";
 import {
   divIcon,
   latLngBounds,
@@ -25,8 +25,16 @@ import type {
 
 type TrackingMapProps = {
   items: TrackedShipmentItem[];
+  locale: "es" | "en";
   selectedShipmentId?: string | null;
   onSelectShipment?: (shipmentId: string) => void;
+};
+
+type PreparedTrackedItem = {
+  item: TrackedShipmentItem;
+  currentPosition: [number, number];
+  routeVisuals: ReturnType<typeof buildRouteVisuals>;
+  shipmentColor: string;
 };
 
 const DEFAULT_CENTER: [number, number] = [2.5, -35];
@@ -53,47 +61,70 @@ const ROUTE_COLOR_PALETTE = [
   "#4f46e5",
 ] as const;
 
-export function TrackingMap({
+const trackingMapCopy = {
+  es: {
+    approximateVesselPosition: "Posicion aproximada resuelta por nave",
+    clickForDetails: "Haz clic para ver detalle",
+  },
+  en: {
+    approximateVesselPosition: "Approximate position resolved by vessel",
+    clickForDetails: "Click to view details",
+  },
+} as const;
+
+const TrackingMapComponent = ({
   items,
+  locale,
   selectedShipmentId,
   onSelectShipment,
-}: TrackingMapProps) {
-  const mapRenderKey = useMemo(
-    () =>
-      items
-        .map(
-          ({ shipment, tracking }) =>
-            `${shipment.groupKey}:${tracking.containerNumber}:${tracking.currentLatitude}:${tracking.currentLongitude}`,
-        )
-        .join("|"),
-    [items],
-  );
-
+}: TrackingMapProps) => {
+  const copy = trackingMapCopy[locale];
+  const preparedItems = useMemo<PreparedTrackedItem[]>(() => {
+    return items.map((item) => ({
+      item,
+      currentPosition: [
+        item.tracking.currentLatitude,
+        item.tracking.currentLongitude,
+      ],
+      routeVisuals: buildRouteVisuals(item.tracking.routePoints),
+      shipmentColor: getShipmentColor(item.shipment.groupKey),
+    }));
+  }, [items]);
   const orderedItems = useMemo(() => {
     if (!selectedShipmentId) {
-      return items;
+      return preparedItems;
     }
 
-    return [...items].sort((left, right) => {
-      if (left.shipment.groupKey === selectedShipmentId) {
+    return [...preparedItems].sort((left, right) => {
+      if (left.item.shipment.groupKey === selectedShipmentId) {
         return 1;
       }
 
-      if (right.shipment.groupKey === selectedShipmentId) {
+      if (right.item.shipment.groupKey === selectedShipmentId) {
         return -1;
       }
 
       return 0;
     });
-  }, [items, selectedShipmentId]);
+  }, [preparedItems, selectedShipmentId]);
   const hasSelection = Boolean(selectedShipmentId);
+  const boundsPositions = useMemo<LatLngExpression[]>(() => {
+    const positions: LatLngExpression[] = [];
+
+    preparedItems.forEach(({ currentPosition, routeVisuals }) => {
+      positions.push(...routeVisuals.allPositions);
+      positions.push(currentPosition);
+    });
+
+    return positions;
+  }, [preparedItems]);
   const markerIcons = useMemo(() => {
     const icons = new Map<string, DivIcon>();
 
-    items.forEach(({ shipment }) => {
+    preparedItems.forEach(({ item, shipmentColor }) => {
+      const { shipment } = item;
       const isSelected = shipment.groupKey === selectedShipmentId;
       const isDimmed = hasSelection && !isSelected;
-      const color = getShipmentColor(shipment.groupKey);
 
       icons.set(
         shipment.groupKey,
@@ -101,7 +132,7 @@ export function TrackingMap({
           className: "tracking-pin-wrapper",
           html: buildPinMarkup({
             shipmentId: shipment.id,
-            color,
+            color: shipmentColor,
             isSelected,
             isDimmed,
           }),
@@ -113,12 +144,12 @@ export function TrackingMap({
     });
 
     return icons;
-  }, [hasSelection, items, selectedShipmentId]);
+  }, [hasSelection, preparedItems, selectedShipmentId]);
   const destinationIcons = useMemo(() => {
     const icons = new Map<string, DivIcon>();
 
-    items.forEach(({ shipment, tracking }) => {
-      const routeVisuals = buildRouteVisuals(tracking.routePoints);
+    preparedItems.forEach(({ item, routeVisuals, shipmentColor }) => {
+      const { shipment } = item;
 
       if (
         routeVisuals.destinationPosition === null ||
@@ -129,14 +160,13 @@ export function TrackingMap({
 
       const isSelected = shipment.groupKey === selectedShipmentId;
       const isDimmed = hasSelection && !isSelected;
-      const color = getShipmentColor(shipment.groupKey);
 
       icons.set(
         shipment.groupKey,
         divIcon({
           className: "tracking-destination-wrapper",
           html: buildDestinationArrowMarkup({
-            color,
+            color: shipmentColor,
             isSelected,
             isDimmed,
             rotationDegrees: routeVisuals.destinationRotation,
@@ -148,15 +178,15 @@ export function TrackingMap({
     });
 
     return icons;
-  }, [hasSelection, items, selectedShipmentId]);
+  }, [hasSelection, preparedItems, selectedShipmentId]);
 
   return (
     <div className="tracking-map-shell h-full w-full">
       <MapContainer
-        key={mapRenderKey}
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
-        scrollWheelZoom
+        preferCanvas
+        scrollWheelZoom={false}
         zoomControl
         doubleClickZoom
         touchZoom
@@ -171,204 +201,182 @@ export function TrackingMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        <ResetLeafletContainerOnUnmount />
-        <FitTrackingBounds items={items} />
+        <FitTrackingBounds positions={boundsPositions} />
 
-        {orderedItems.map(({ shipment, tracking, trackingMatchScope }) => {
-          const isSelected = shipment.groupKey === selectedShipmentId;
-          const shipmentColor = getShipmentColor(shipment.groupKey);
-          const routeVisuals = buildRouteVisuals(tracking.routePoints);
-          const traveledLineOpacity = isSelected
-            ? 1
-            : hasSelection
-              ? 0.32
-              : 0.86;
-          const traveledOutlineOpacity = isSelected
-            ? 0.92
-            : hasSelection
-              ? 0.22
-              : 0.54;
-          const plannedLineOpacity = isSelected
-            ? 0.94
-            : hasSelection
-              ? 0.26
-              : 0.72;
-          const plannedOutlineOpacity = isSelected
-            ? 0.72
-            : hasSelection
-              ? 0.18
-              : 0.38;
-          const haloOpacity = isSelected ? 0.26 : hasSelection ? 0.04 : 0.1;
+        {orderedItems.map(
+          ({ item, currentPosition, routeVisuals, shipmentColor }) => {
+            const { shipment, tracking, trackingMatchScope } = item;
+            const isSelected = shipment.groupKey === selectedShipmentId;
+            const traveledLineOpacity = isSelected
+              ? 1
+              : hasSelection
+                ? 0.32
+                : 0.86;
+            const traveledOutlineOpacity = isSelected
+              ? 0.92
+              : hasSelection
+                ? 0.22
+                : 0.54;
+            const plannedLineOpacity = isSelected
+              ? 0.94
+              : hasSelection
+                ? 0.26
+                : 0.72;
+            const plannedOutlineOpacity = isSelected
+              ? 0.72
+              : hasSelection
+                ? 0.18
+                : 0.38;
+            const haloOpacity = isSelected ? 0.26 : hasSelection ? 0.04 : 0.1;
 
-          return (
-            <Fragment key={`${shipment.groupKey}-${tracking.containerNumber}`}>
-              {routeVisuals.traveledPositions.length > 1 ? (
-                <>
-                  <Polyline
-                    positions={routeVisuals.traveledPositions}
-                    pathOptions={{
-                      color: "rgba(255,255,255,0.92)",
-                      weight: isSelected ? 9 : 7,
-                      opacity: traveledOutlineOpacity,
-                      lineCap: "round",
-                      lineJoin: "round",
-                    }}
-                    eventHandlers={{
-                      click: () => onSelectShipment?.(shipment.groupKey),
-                    }}
-                  />
-                  <Polyline
-                    positions={routeVisuals.traveledPositions}
-                    pathOptions={{
-                      color: shipmentColor,
-                      weight: isSelected ? 5.5 : 4,
-                      opacity: traveledLineOpacity,
-                      lineCap: "round",
-                      lineJoin: "round",
-                    }}
-                    eventHandlers={{
-                      click: () => onSelectShipment?.(shipment.groupKey),
-                    }}
-                  />
-                </>
-              ) : null}
-
-              {routeVisuals.plannedPositions.length > 1 ? (
-                <>
-                  <Polyline
-                    positions={routeVisuals.plannedPositions}
-                    pathOptions={{
-                      color: "rgba(255,255,255,0.86)",
-                      weight: isSelected ? 7 : 6,
-                      opacity: plannedOutlineOpacity,
-                      lineCap: "round",
-                      lineJoin: "round",
-                      dashArray: "12 14",
-                    }}
-                    eventHandlers={{
-                      click: () => onSelectShipment?.(shipment.groupKey),
-                    }}
-                  />
-                  <Polyline
-                    positions={routeVisuals.plannedPositions}
-                    pathOptions={{
-                      color: shipmentColor,
-                      weight: isSelected ? 4.25 : 3.25,
-                      opacity: plannedLineOpacity,
-                      lineCap: "round",
-                      lineJoin: "round",
-                      dashArray: "12 14",
-                    }}
-                    eventHandlers={{
-                      click: () => onSelectShipment?.(shipment.groupKey),
-                    }}
-                  />
-                </>
-              ) : null}
-
-              <CircleMarker
-                center={[tracking.currentLatitude, tracking.currentLongitude]}
-                radius={isSelected ? 22 : 15}
-                pathOptions={{
-                  color: shipmentColor,
-                  weight: 0,
-                  fillColor: shipmentColor,
-                  fillOpacity: haloOpacity,
-                }}
-                eventHandlers={{
-                  click: () => onSelectShipment?.(shipment.groupKey),
-                }}
-              />
-
-              <Marker
-                position={[tracking.currentLatitude, tracking.currentLongitude]}
-                icon={markerIcons.get(shipment.groupKey)}
-                eventHandlers={{
-                  click: () => onSelectShipment?.(shipment.groupKey),
-                }}
+            return (
+              <Fragment
+                key={`${shipment.groupKey}-${tracking.containerNumber}`}
               >
-                <Tooltip direction="top" offset={[0, -10]} opacity={1}>
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {shipment.recipientName}
-                    </p>
-                    <p className="text-xs opacity-85">
-                      {trackingMatchScope === "vessel"
-                        ? `${tracking.vesselName} · EMB ${shipment.id}`
-                        : `${shipment.container} · EMB ${shipment.id}`}
-                    </p>
-                    <p className="text-xs opacity-85">
-                      {tracking.lastEventLocationName ??
-                        tracking.destinationName}
-                    </p>
-                    {trackingMatchScope === "vessel" ? (
-                      <p className="text-xs opacity-85">
-                        Posicion aproximada resuelta por nave
-                      </p>
-                    ) : null}
-                    <p className="text-xs opacity-85">
-                      Haz clic para ver detalle
-                    </p>
-                  </div>
-                </Tooltip>
-              </Marker>
+                {routeVisuals.traveledPositions.length > 1 ? (
+                  <>
+                    <Polyline
+                      positions={routeVisuals.traveledPositions}
+                      pathOptions={{
+                        color: "rgba(255,255,255,0.92)",
+                        weight: isSelected ? 9 : 7,
+                        opacity: traveledOutlineOpacity,
+                        lineCap: "round",
+                        lineJoin: "round",
+                      }}
+                      eventHandlers={{
+                        click: () => onSelectShipment?.(shipment.groupKey),
+                      }}
+                    />
+                    <Polyline
+                      positions={routeVisuals.traveledPositions}
+                      pathOptions={{
+                        color: shipmentColor,
+                        weight: isSelected ? 5.5 : 4,
+                        opacity: traveledLineOpacity,
+                        lineCap: "round",
+                        lineJoin: "round",
+                      }}
+                      eventHandlers={{
+                        click: () => onSelectShipment?.(shipment.groupKey),
+                      }}
+                    />
+                  </>
+                ) : null}
 
-              {routeVisuals.destinationPosition !== null ? (
-                <Marker
-                  position={routeVisuals.destinationPosition}
-                  icon={destinationIcons.get(shipment.groupKey)}
+                {routeVisuals.plannedPositions.length > 1 ? (
+                  <>
+                    <Polyline
+                      positions={routeVisuals.plannedPositions}
+                      pathOptions={{
+                        color: "rgba(255,255,255,0.86)",
+                        weight: isSelected ? 7 : 6,
+                        opacity: plannedOutlineOpacity,
+                        lineCap: "round",
+                        lineJoin: "round",
+                        dashArray: "12 14",
+                      }}
+                      eventHandlers={{
+                        click: () => onSelectShipment?.(shipment.groupKey),
+                      }}
+                    />
+                    <Polyline
+                      positions={routeVisuals.plannedPositions}
+                      pathOptions={{
+                        color: shipmentColor,
+                        weight: isSelected ? 4.25 : 3.25,
+                        opacity: plannedLineOpacity,
+                        lineCap: "round",
+                        lineJoin: "round",
+                        dashArray: "12 14",
+                      }}
+                      eventHandlers={{
+                        click: () => onSelectShipment?.(shipment.groupKey),
+                      }}
+                    />
+                  </>
+                ) : null}
+
+                <CircleMarker
+                  center={currentPosition}
+                  radius={isSelected ? 22 : 15}
+                  pathOptions={{
+                    color: shipmentColor,
+                    weight: 0,
+                    fillColor: shipmentColor,
+                    fillOpacity: haloOpacity,
+                  }}
                   eventHandlers={{
                     click: () => onSelectShipment?.(shipment.groupKey),
                   }}
                 />
-              ) : null}
-            </Fragment>
-          );
-        })}
+
+                <Marker
+                  position={currentPosition}
+                  icon={markerIcons.get(shipment.groupKey)}
+                  eventHandlers={{
+                    click: () => onSelectShipment?.(shipment.groupKey),
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -10]} opacity={1}>
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {shipment.recipientName}
+                      </p>
+                      <p className="text-xs opacity-85">
+                        {trackingMatchScope === "vessel"
+                          ? `${tracking.vesselName} · EMB ${shipment.id}`
+                          : `${shipment.container} · EMB ${shipment.id}`}
+                      </p>
+                      <p className="text-xs opacity-85">
+                        {tracking.lastEventLocationName ??
+                          tracking.destinationName}
+                      </p>
+                      {trackingMatchScope === "vessel" ? (
+                        <p className="text-xs opacity-85">
+                          {copy.approximateVesselPosition}
+                        </p>
+                      ) : null}
+                      <p className="text-xs opacity-85">
+                        {copy.clickForDetails}
+                      </p>
+                    </div>
+                  </Tooltip>
+                </Marker>
+
+                {routeVisuals.destinationPosition !== null ? (
+                  <Marker
+                    position={routeVisuals.destinationPosition}
+                    icon={destinationIcons.get(shipment.groupKey)}
+                    eventHandlers={{
+                      click: () => onSelectShipment?.(shipment.groupKey),
+                    }}
+                  />
+                ) : null}
+              </Fragment>
+            );
+          },
+        )}
       </MapContainer>
     </div>
   );
-}
+};
 
-function ResetLeafletContainerOnUnmount() {
+export const TrackingMap = memo(TrackingMapComponent);
+
+TrackingMap.displayName = "TrackingMap";
+
+function FitTrackingBounds({ positions }: { positions: LatLngExpression[] }) {
   const map = useMap();
 
   useEffect(() => {
-    return () => {
-      const container = map.getContainer() as HTMLElement & {
-        _leaflet_id?: number;
-      };
-
-      if (container && "_leaflet_id" in container) {
-        delete container._leaflet_id;
-      }
-    };
-  }, [map]);
-
-  return null;
-}
-
-function FitTrackingBounds({ items }: TrackingMapProps) {
-  const map = useMap();
-
-  useEffect(() => {
-    const allPositions: LatLngExpression[] = [];
-
-    items.forEach(({ tracking }) => {
-      tracking.routePoints.forEach((point) => {
-        allPositions.push([point.latitude, point.longitude]);
-      });
-
-      allPositions.push([tracking.currentLatitude, tracking.currentLongitude]);
-    });
-
-    if (allPositions.length === 0) {
+    if (positions.length === 0) {
       map.invalidateSize(false);
       map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
       return;
     }
 
-    const bounds = latLngBounds(allPositions);
+    const bounds = latLngBounds(positions);
 
     if (bounds.isValid()) {
       map.invalidateSize(false);
@@ -377,7 +385,7 @@ function FitTrackingBounds({ items }: TrackingMapProps) {
         maxZoom: 6,
       });
     }
-  }, [items, map]);
+  }, [map, positions]);
 
   useEffect(() => {
     const syncMapSize = () => map.invalidateSize(false);

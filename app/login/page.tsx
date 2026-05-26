@@ -130,7 +130,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 name="username"
                 type="text"
                 autoComplete="username"
-                className="w-full rounded-[1rem] border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
+                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
                 placeholder="admin_portal"
                 required
               />
@@ -144,7 +144,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 name="password"
                 type="password"
                 autoComplete="current-password"
-                className="w-full rounded-[1rem] border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
+                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
                 placeholder="Tu clave del portal"
                 required
               />
@@ -152,7 +152,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center rounded-[1rem] bg-[#111827] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-[#111827] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
             >
               Entrar al portal
             </button>

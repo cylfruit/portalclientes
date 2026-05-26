@@ -1,25 +1,36 @@
 "use client";
 
+import {
+  Fragment,
+  useState,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+  useDeferredValue,
+} from "react";
 import dynamic from "next/dynamic";
-import { Fragment, useState, type ReactNode } from "react";
 import {
   buildShipmentsFromRows,
   type ContainerTrackingSnapshot,
   formatDate,
   formatNumber,
-  formatWeight,
   type EmbarqueRow,
+  type ShipmentSeasonOption,
   type ShipmentSummary,
   type TrackedShipmentItem,
 } from "@/lib/portal-data";
 
-type FilterState = {
-  species: string;
-  destination: string;
-  season: string;
-};
+const TrackingMap = dynamic(
+  () => import("@/components/tracking-map").then((m) => m.TrackingMap),
+  { ssr: false },
+);
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type PortalLocale = "es" | "en";
+
+type SearchField = "all" | "container" | "shipment" | "booking";
 
 type ShipmentDocumentItem = {
   id: string;
@@ -47,239 +58,259 @@ type ShipmentDocumentsLoadState = {
   errorMessage: string | null;
 };
 
-const EMPTY_SHIPMENT_DOCUMENTS_STATE: ShipmentDocumentsLoadState = {
+const EMPTY_DOCS_STATE: ShipmentDocumentsLoadState = {
   status: "idle",
   items: [],
   errorMessage: null,
 };
 
+export type ClientHomeDashboardProps = {
+  locale: PortalLocale;
+  rows: EmbarqueRow[];
+  trackingSnapshots: ContainerTrackingSnapshot[];
+  vesselTrackingSnapshots: ContainerTrackingSnapshot[];
+  seasons: ShipmentSeasonOption[];
+  defaultSeason: string | null;
+  errorMessage?: string | null;
+  trackingErrorMessage?: string | null;
+};
+
+// ─── Copy ─────────────────────────────────────────────────────────────────────
+
 const dashboardCopy = {
   es: {
-    allSpecies: "Todas las especies",
-    allDestinations: "Todos los destinos",
-    allSeasons: "Todas las temporadas",
-    filterSpecies: "Especie",
-    filterDestination: "Destino",
-    filterSeason: "Temporada",
-    apply: "Aplicar",
-    clear: "Limpiar",
-    exportCsv: "CSV",
-    filteredBase: "Base total filtrada",
-    totalShippedWeight: "Peso total embarcado",
-    totalShareSuffix: "del total",
-    generalView: "Vista general cliente sin filtros adicionales.",
-    trackingKicker: "Tracking maritimo",
-    trackingHeading: "Seguimiento de mi fruta",
-    trackingDescription:
-      "Ubicacion aproximada de las naves que hoy siguen activas para el cliente, usando el mismo lenguaje operativo del portal de C&L.",
-    trackingActiveSuffix: "con tracking activo",
-    visibleShipmentsSuffix: "embarques visibles",
-    vesselApproximation:
-      "embarques visibles usan posicion aproximada por nave cuando el contenedor no trae snapshot activo directo.",
-    noTrackingForView: "Sin tracking activo para esta vista",
-    adjustFiltersForTracking:
-      "Ajusta los filtros para volver a cargar embarques.",
-    noLiveTrackingAvailable:
-      "Los embarques visibles no tienen un tracking vigente por contenedor ni una nave activa asociada en ContainerTrackingDaily.",
-    noTripsTitle: "No hay viajes para ese cruce",
-    noTripsDescription:
-      "Prueba limpiando los filtros o cambiando la combinacion para volver a ver los embarques disponibles.",
-    noLivePositionTitle: "Sin posicion activa para los contenedores visibles",
-    noLivePositionDescription:
-      "Los embarques visibles siguen apareciendo en la tabla, pero no tienen un tracking vigente por contenedor ni por nave en ContainerTrackingDaily para el mapa.",
-    mapInstruction:
-      "Haz clic en una posicion del mapa para ver el detalle del embarque, la ultima ubicacion reportada y su ETA estimada sin desplegar una lista larga de viajes.",
-    approximateByVessel: "Posicion aproximada por nave",
-    inTransit: "En transito",
-    lastPosition: "Ultima posicion",
-    etaSourceShipment: "Base embarque",
-    etaSourceCarrier: "Fuente transportista",
-    vesselContainer: "Nave / contenedor",
-    estimatedProgress: "Avance estimado",
-    noData: "Sin dato",
-    trackingResolvedByVessel: "tracking resuelto por nave",
-    remaining: "restantes",
-    viewDocuments: "Ver documentos",
-    clearSelection: "Limpiar seleccion",
-    selectTrackedShipmentTitle: "Selecciona una nave o contenedor",
-    selectTrackedShipmentDescription:
-      "Presiona una posicion del mapa para abrir un resumen puntual del embarque, sin listar toda la cartera visible en esta seccion.",
-    shipmentsWithoutTracking:
-      "embarques visibles no tienen un tracking vigente por contenedor ni por nave en ContainerTrackingDaily.",
-    detailsKicker: "Detalle operativo",
-    consolidatedShipments: "Embarques consolidados",
-    consolidatedDescription:
-      "Vista agrupada desde `vw_Embarques_pc` para mostrar solo el embarque y sus datos operativos, sin repetir el detalle por pallet.",
-    consolidatedSuffix: "embarques consolidados",
-    shipmentDocuments: "Documentos del embarque",
-    documentsLiveHint:
-      "Los archivos se consultan en vivo desde la API segura por embarque y temporada.",
-    readyToSail: "Por zarpar",
-    downloadDocs: "Descargar docs",
-    loadDocuments: "Cargar docs",
-    reloadDocuments: "Recargar docs",
-    loadingDocuments: "Cargando documentos...",
-    documentsLoadFailed:
-      "No fue posible cargar los documentos de este embarque.",
-    noDocumentsAvailable:
-      "No hay archivos disponibles para este embarque en la API segura.",
+    inTransit: "EN TRÁNSITO",
+    inTransitSub: "Contenedores en ruta",
+    arrivingSoon: "PRÓXIMOS ARRIBOS",
+    arrivingSoonSub: "Próximos 7 días",
+    docsReady: "ARRIBADOS",
+    docsReadySub: "Embarques ya arribados del cliente",
+    searchPlaceholder: "Buscar por embarque, booking o contenedor...",
+    searchingResults: "Buscando resultados...",
+    searchByLabel: "Buscar por",
+    searchByAll: "Todos",
+    searchByContainer: "Contenedor",
+    searchByShipment: "Nro embarque",
+    searchByBooking: "Booking",
+    seasonLabel: "Temporada",
+    etdFromLabel: "ETD desde",
+    etdToLabel: "ETD hasta",
+    etaFromLabel: "ETA desde",
+    etaToLabel: "ETA hasta",
+    clearFilters: "Limpiar filtros",
+    exportExcel: "Exportar a Excel",
+    misEmbarques: "Mis Embarques",
+    shipmentsShowing: "embarques",
+    colStatus: "Embarque",
+    colContainer: "Contenedor / Booking",
+    colRoute: "Ruta y Nave",
+    colDates: "ETD → ETA",
+    colActions: "Acciones",
+    viewDetails: "Ver Detalles",
+    hideDetails: "Ocultar Detalles",
+    noShipmentsTitle: "Sin embarques para esta búsqueda",
+    noShipmentsDescription:
+      "Ajusta los filtros o cambia la temporada para ver los embarques disponibles.",
+    prev: "Anterior",
+    next: "Siguiente",
+    loadingNewSeason: "Cargando temporada...",
+    docsCenter: "Centro de Documentos",
+    docsHint: "Los archivos se consultan en vivo por embarque y temporada.",
+    loadDocs: "Cargar Documentos",
+    reloadDocs: "Recargar",
+    loadingDocs: "Cargando documentos...",
+    docsLoadFailed: "No fue posible cargar los documentos de este embarque.",
+    noDocsAvailable: "No hay archivos disponibles para este embarque.",
     openDocument: "Ver archivo",
-    secureApi: "API segura",
-    documentType: "Tipo",
-    documentUpdatedAt: "Actualizado",
-    fileSize: "Tamano",
+    download: "Descargar PDF",
     retry: "Reintentar",
     close: "Cerrar",
-    tripDates: "Fechas del viaje",
-    commercialData: "Datos comerciales",
-    useViewDocs:
-      "Usa el boton Ver docs dentro de la tabla para abrir los documentos del embarque seleccionado.",
-    noShipmentsTitle: "Sin embarques en la tabla",
-    noShipmentsDescription:
-      "No existen embarques para el cruce actual. Ajusta filtros o vuelve a la vista general para seguir trabajando.",
-    tableShipment: "Embarque",
-    tableReceiver: "Recibidor",
-    tableSpeciesVariety: "Especie / Variedad",
-    tableVesselContainer: "Nave / Contenedor",
-    tableEtdEta: "ETD / ETA",
-    tableAtdAta: "ATD / ATA",
-    tableTotals: "Totales",
-    tableDocuments: "Documentos",
-    toDestination: "Hacia",
-    growers: "productores",
-    totalBoxes: "cajas totales",
-    pallets: "pallets",
-    bookingAwb: "Booking / AWB",
-    docsShort: "docs",
-    viewDocs: "Ver docs",
-    download: "Descargar",
-    manifestShipment: "Embarque",
-    manifestReceiver: "Recibidor",
-    manifestConsignee: "Consignatario",
-    manifestRoute: "Ruta",
-    manifestVessel: "Nave",
-    manifestShippingLine: "Naviera",
-    manifestContainer: "Contenedor",
-    manifestTotalBoxes: "Total cajas",
-    manifestNetWeight: "Peso neto",
-    manifestStatus: "Estado",
-    manifestDocuments: "Documentos",
+    noData: "Sin dato",
+    fileSize: "Tamaño",
+    docUpdatedAt: "Actualizado",
+    trackingTitle: "Trayecto del embarque",
+    stepLoaded: "Carga Lista",
+    stepDeparted: "Zarpe",
+    stepInTransit: "En Tránsito",
+    stepArrived: "Arribo",
+    vessel: "Nave",
+    containerLabel: "Contenedor",
+    blLabel: "BL",
+    bookingLabel: "Booking",
+    etdLabel: "ETD",
+    etaLabel: "ETA",
+    atdLabel: "ATD",
+    ataLabel: "ATA",
+    trackingProgress: "Avance estimado",
     csvFilePrefix: "embarques-clientes",
-    manifestFilePrefix: "embarque",
-    manifestFileSuffix: "documentos",
+    arrivedLabel: "Arribado",
+    scheduledLabel: "Por zarpar",
+    inTransitLabel: "En tránsito",
+    originPort: "Puerto origen",
+    destinationPort: "Puerto destino",
+    pageOf: (page: number, total: number) => `Pág. ${page} de ${total}`,
   },
   en: {
-    allSpecies: "All species",
-    allDestinations: "All destinations",
-    allSeasons: "All seasons",
-    filterSpecies: "Species",
-    filterDestination: "Destination",
-    filterSeason: "Season",
-    apply: "Apply",
-    clear: "Clear",
-    exportCsv: "CSV",
-    filteredBase: "Filtered total base",
-    totalShippedWeight: "Total shipped weight",
-    totalShareSuffix: "of total",
-    generalView: "Client overview with no extra filters.",
-    trackingKicker: "Ocean tracking",
-    trackingHeading: "Tracking for my fruit",
-    trackingDescription:
-      "Approximate location of vessels that are still active for this client, using the same operational language as the C&L portal.",
-    trackingActiveSuffix: "with live tracking",
-    visibleShipmentsSuffix: "visible shipments",
-    vesselApproximation:
-      "visible shipments use approximate vessel position when the container has no active direct snapshot.",
-    noTrackingForView: "No active tracking for this view",
-    adjustFiltersForTracking: "Adjust the filters to load shipments again.",
-    noLiveTrackingAvailable:
-      "Visible shipments do not have current tracking by container or an active linked vessel in ContainerTrackingDaily.",
-    noTripsTitle: "No voyages for this filter combination",
-    noTripsDescription:
-      "Try clearing filters or changing the combination to see available shipments again.",
-    noLivePositionTitle: "No live position for visible containers",
-    noLivePositionDescription:
-      "Visible shipments still appear in the table, but they do not have current container or vessel tracking in ContainerTrackingDaily for the map.",
-    mapInstruction:
-      "Click a point on the map to see shipment details, the latest reported location, and the estimated ETA without opening a long voyage list.",
-    approximateByVessel: "Approximate position by vessel",
-    inTransit: "In transit",
-    lastPosition: "Latest position",
-    etaSourceShipment: "Shipment base",
-    etaSourceCarrier: "Carrier source",
-    vesselContainer: "Vessel / container",
-    estimatedProgress: "Estimated progress",
-    noData: "No data",
-    trackingResolvedByVessel: "tracking resolved by vessel",
-    remaining: "remaining",
-    viewDocuments: "View documents",
-    clearSelection: "Clear selection",
-    selectTrackedShipmentTitle: "Select a vessel or container",
-    selectTrackedShipmentDescription:
-      "Click a position on the map to open a focused shipment summary without listing the entire visible portfolio in this section.",
-    shipmentsWithoutTracking:
-      "visible shipments do not have current container or vessel tracking in ContainerTrackingDaily.",
-    detailsKicker: "Operational detail",
-    consolidatedShipments: "Consolidated shipments",
-    consolidatedDescription:
-      "Grouped view from `vw_Embarques_pc` to show only the shipment and its operational data without repeating pallet-level detail.",
-    consolidatedSuffix: "consolidated shipments",
-    shipmentDocuments: "Shipment documents",
-    documentsLiveHint: "",
-    readyToSail: "Ready to sail",
-    downloadDocs: "Download docs",
-    loadDocuments: "Load docs",
-    reloadDocuments: "Reload docs",
-    loadingDocuments: "Loading documents...",
-    documentsLoadFailed: "The shipment documents could not be loaded.",
-    noDocumentsAvailable:
-      "No files are available for this shipment in the secure API.",
-    openDocument: "Open file",
-    secureApi: "Actions",
-    documentType: "Type",
-    documentUpdatedAt: "Updated",
-    fileSize: "File size",
+    inTransit: "IN TRANSIT",
+    inTransitSub: "Containers en route",
+    arrivingSoon: "ARRIVING SOON",
+    arrivingSoonSub: "Next 7 days",
+    docsReady: "ARRIVED",
+    docsReadySub: "Client shipments already arrived",
+    searchPlaceholder: "Search by shipment, booking or container...",
+    searchingResults: "Searching results...",
+    searchByLabel: "Search by",
+    searchByAll: "All",
+    searchByContainer: "Container",
+    searchByShipment: "Shipment no.",
+    searchByBooking: "Booking",
+    seasonLabel: "Season",
+    etdFromLabel: "ETD from",
+    etdToLabel: "ETD to",
+    etaFromLabel: "ETA from",
+    etaToLabel: "ETA to",
+    clearFilters: "Clear filters",
+    exportExcel: "Export to Excel",
+    misEmbarques: "My Shipments",
+    shipmentsShowing: "shipments",
+    colStatus: "Shipment",
+    colContainer: "Container / Booking",
+    colRoute: "Route & Vessel",
+    colDates: "ETD → ETA",
+    colActions: "Actions",
+    viewDetails: "View Details",
+    hideDetails: "Hide Details",
+    noShipmentsTitle: "No shipments for this search",
+    noShipmentsDescription:
+      "Adjust the filters or change the season to see available shipments.",
+    prev: "Previous",
+    next: "Next",
+    loadingNewSeason: "Loading season...",
+    docsCenter: "Document Center",
+    docsHint: "Files are fetched live by shipment and season.",
+    loadDocs: "Load Documents",
+    reloadDocs: "Reload",
+    loadingDocs: "Loading documents...",
+    docsLoadFailed: "Could not load the shipment documents.",
+    noDocsAvailable: "No files available for this shipment.",
+    openDocument: "View file",
+    download: "Download PDF",
     retry: "Retry",
     close: "Close",
-    tripDates: "Voyage dates",
-    commercialData: "Commercial data",
-    useViewDocs:
-      "Use the View docs button inside the table to open the documents for the selected shipment.",
-    noShipmentsTitle: "No shipments in the table",
-    noShipmentsDescription:
-      "There are no shipments for the current filter combination. Adjust filters or return to the full view to keep working.",
-    tableShipment: "Shipment",
-    tableReceiver: "Receiver",
-    tableSpeciesVariety: "Species / Variety",
-    tableVesselContainer: "Vessel / Container",
-    tableEtdEta: "ETD / ETA",
-    tableAtdAta: "ATD / ATA",
-    tableTotals: "Totals",
-    tableDocuments: "Documents",
-    toDestination: "To",
-    growers: "growers",
-    totalBoxes: "total boxes",
-    pallets: "pallets",
-    bookingAwb: "Booking / AWB",
-    docsShort: "docs",
-    viewDocs: "View docs",
-    download: "Download",
-    manifestShipment: "Shipment",
-    manifestReceiver: "Receiver",
-    manifestConsignee: "Consignee",
-    manifestRoute: "Route",
-    manifestVessel: "Vessel",
-    manifestShippingLine: "Shipping line",
-    manifestContainer: "Container",
-    manifestTotalBoxes: "Total boxes",
-    manifestNetWeight: "Net weight",
-    manifestStatus: "Status",
-    manifestDocuments: "Documents",
+    noData: "No data",
+    fileSize: "File size",
+    docUpdatedAt: "Updated",
+    trackingTitle: "Shipment journey",
+    stepLoaded: "Loaded",
+    stepDeparted: "Departed",
+    stepInTransit: "In Transit",
+    stepArrived: "Arrived",
+    vessel: "Vessel",
+    containerLabel: "Container",
+    blLabel: "BL",
+    bookingLabel: "Booking",
+    etdLabel: "ETD",
+    etaLabel: "ETA",
+    atdLabel: "ATD",
+    ataLabel: "ATA",
+    trackingProgress: "Estimated progress",
     csvFilePrefix: "client-shipments",
-    manifestFilePrefix: "shipment",
-    manifestFileSuffix: "documents",
+    arrivedLabel: "Arrived",
+    scheduledLabel: "Scheduled",
+    inTransitLabel: "In transit",
+    originPort: "Origin port",
+    destinationPort: "Destination port",
+    pageOf: (page: number, total: number) => `Pg. ${page} of ${total}`,
   },
 } as const;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function normalizeContainerKey(value: string | null | undefined) {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function normalizeVesselKey(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function extractComparableDate(value: string | null | undefined) {
+  if (!value) return null;
+
+  const dateMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+  if (dateMatch) {
+    return dateMatch[0];
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function matchesDateRange(
+  value: string | null | undefined,
+  from: string,
+  to: string,
+) {
+  if (!from && !to) {
+    return true;
+  }
+
+  const comparableDate = extractComparableDate(value);
+  if (!comparableDate) {
+    return false;
+  }
+
+  if (from && comparableDate < from) {
+    return false;
+  }
+
+  if (to && comparableDate > to) {
+    return false;
+  }
+
+  return true;
+}
+
+function matchesSearchField(
+  shipment: ShipmentSummary,
+  query: string,
+  searchField: SearchField,
+) {
+  if (!query) {
+    return true;
+  }
+
+  switch (searchField) {
+    case "container":
+      return shipment.container.toLowerCase().includes(query);
+    case "shipment":
+      return shipment.id.toLowerCase().includes(query);
+    case "booking":
+      return shipment.booking.toLowerCase().includes(query);
+    default:
+      return (
+        shipment.id.toLowerCase().includes(query) ||
+        shipment.booking.toLowerCase().includes(query) ||
+        shipment.container.toLowerCase().includes(query)
+      );
+  }
+}
+
+function formatTrackingDate(
+  value: string | null | undefined,
+  locale: PortalLocale,
+): string {
+  if (!value) return dashboardCopy[locale].noData;
+  const dateMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+  if (dateMatch) return formatDate(dateMatch[0], locale);
+  const parsed = new Date(value);
+  if (isNaN(parsed.getTime())) return value;
+  return formatDate(parsed.toISOString().slice(0, 10), locale);
+}
 
 function getDecimalFormatter(locale: PortalLocale) {
   return new Intl.NumberFormat(locale === "en" ? "en-US" : "es-CL", {
@@ -288,65 +319,100 @@ function getDecimalFormatter(locale: PortalLocale) {
   });
 }
 
-function translateShipmentStatus(
-  status: ShipmentSummary["status"],
+function formatProgress(
+  value: number | null | undefined,
   locale: PortalLocale,
-  variant: "badge" | "raw" = "raw",
 ) {
-  if (locale === "es") {
-    if (status === "Programado" && variant === "badge") {
-      return dashboardCopy.es.readyToSail;
-    }
+  if (value == null) return dashboardCopy[locale].noData;
+  return `${getDecimalFormatter(locale).format(value)}%`;
+}
 
-    return status;
+function formatFileSize(
+  value: number | null | undefined,
+  locale: PortalLocale,
+) {
+  if (value == null || value <= 0) return dashboardCopy[locale].noData;
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
   }
+  return `${getDecimalFormatter(locale).format(size)} ${units[unitIndex]}`;
+}
 
+function shipmentStatusBadge(status: ShipmentSummary["status"]) {
   switch (status) {
-    case "Programado":
-      return variant === "badge" ? dashboardCopy.en.readyToSail : "Scheduled";
+    case "Arribado":
+      return "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700";
     case "En transito":
-      return "In transit";
+      return "inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700";
     default:
-      return "Arrived";
+      return "inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700";
+  }
+}
+
+function statusLabel(status: ShipmentSummary["status"], locale: PortalLocale) {
+  const c = dashboardCopy[locale];
+  switch (status) {
+    case "Arribado":
+      return c.arrivedLabel;
+    case "En transito":
+      return c.inTransitLabel;
+    default:
+      return c.scheduledLabel;
+  }
+}
+
+function documentStateBadgeDot(state: string) {
+  const up = state.trim().toUpperCase();
+  switch (up) {
+    case "EMITIDO":
+    case "CONFIRMADO":
+    case "COMPLETO":
+    case "VIGENTE":
+    case "CARGADO":
+    case "DISPONIBLE":
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500";
+    case "PARCIAL":
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-amber-400";
+    default:
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-slate-300";
   }
 }
 
 function translateDocumentState(state: string, locale: PortalLocale) {
-  const normalizedState = state.trim().toUpperCase();
-
-  if (normalizedState === "") {
-    return dashboardCopy[locale].noData;
-  }
-
+  const up = state.trim().toUpperCase();
+  if (up === "") return dashboardCopy[locale].noData;
   if (locale === "es") {
-    switch (normalizedState) {
+    switch (up) {
       case "LOADED":
+      case "CARGADO":
         return "Cargado";
+      case "DISPONIBLE":
+        return "Disponible";
+      case "NO_DISPONIBLE":
+        return "No disponible";
       default:
         return state;
     }
   }
-
-  switch (normalizedState) {
-    case "Emitido":
+  switch (up) {
     case "EMITIDO":
       return "Issued";
-    case "Confirmado":
     case "CONFIRMADO":
       return "Confirmed";
-    case "Completo":
     case "COMPLETO":
       return "Complete";
-    case "Vigente":
     case "VIGENTE":
       return "Current";
-    case "Parcial":
     case "PARCIAL":
       return "Partial";
-    case "Pendiente":
     case "PENDIENTE":
       return "Pending";
     case "CARGADO":
+    case "LOADED":
       return "Uploaded";
     case "DISPONIBLE":
       return "Available";
@@ -357,1647 +423,140 @@ function translateDocumentState(state: string, locale: PortalLocale) {
   }
 }
 
-const TrackingMap = dynamic(
-  () =>
-    import("@/components/tracking-map").then((module) => module.TrackingMap),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-full min-h-90 items-center justify-center bg-[#d7e1e6] px-6 text-center text-sm font-semibold text-cyl-ink/70">
-        Loading map...
-      </div>
-    ),
-  },
-);
-
-type ClientHomeDashboardProps = {
-  locale: PortalLocale;
-  rows: EmbarqueRow[];
-  trackingSnapshots: ContainerTrackingSnapshot[];
-  vesselTrackingSnapshots: ContainerTrackingSnapshot[];
-  errorMessage?: string | null;
-  trackingErrorMessage?: string | null;
-};
-
-export function ClientHomeDashboard({
-  locale,
-  rows,
-  trackingSnapshots,
-  vesselTrackingSnapshots,
-  errorMessage,
-  trackingErrorMessage,
-}: ClientHomeDashboardProps) {
-  const copy = dashboardCopy[locale];
-  const filterMeta = buildFilterMeta(rows, locale);
-  const formatWholeNumber = (value: number | null | undefined) =>
-    formatNumber(value, locale);
-  const formatLocalizedWeight = (value: number | null | undefined) =>
-    formatWeight(value, locale);
-  const formatLocalizedDate = (value: string | null | undefined) =>
-    formatDate(value, locale);
-  const [draftFilters, setDraftFilters] = useState<FilterState>(
-    filterMeta.defaultFilters,
-  );
-  const [appliedFilters, setAppliedFilters] = useState<FilterState>(
-    filterMeta.defaultFilters,
-  );
-  const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(
-    null,
-  );
-  const [selectedTrackedShipmentId, setSelectedTrackedShipmentId] = useState<
-    string | null
-  >(null);
-  const [shipmentDocumentsByKey, setShipmentDocumentsByKey] = useState<
-    Record<string, ShipmentDocumentsLoadState>
-  >({});
-
-  const filteredRows = rows.filter((row) =>
-    matchesRowWithFilters(row, appliedFilters, filterMeta.defaultFilters),
-  );
-  const filteredShipments = buildShipmentsFromRows(filteredRows);
-  const trackingByContainer = new Map(
-    trackingSnapshots.map((snapshot) => [
-      normalizeContainerKey(snapshot.containerNumber),
-      snapshot,
-    ]),
-  );
-  const trackingByVessel = new Map(
-    vesselTrackingSnapshots.map((snapshot) => [
-      normalizeVesselKey(snapshot.vesselName),
-      snapshot,
-    ]),
-  );
-  const trackedShipments = filteredShipments.reduce<TrackedShipmentItem[]>(
-    (items, shipment) => {
-      const containerTrackingSnapshot = trackingByContainer.get(
-        normalizeContainerKey(shipment.container),
-      );
-
-      if (containerTrackingSnapshot) {
-        items.push({
-          shipment,
-          tracking: containerTrackingSnapshot,
-          trackingMatchScope: "container",
-        });
-
-        return items;
-      }
-
-      const vesselTrackingSnapshot = trackingByVessel.get(
-        normalizeVesselKey(shipment.vesselName),
-      );
-
-      if (vesselTrackingSnapshot) {
-        items.push({
-          shipment,
-          tracking: vesselTrackingSnapshot,
-          trackingMatchScope: "vessel",
-        });
-      }
-
-      return items;
-    },
-    [],
-  );
-  const trackedShipmentById = new Map(
-    trackedShipments.map((item) => [item.shipment.groupKey, item]),
-  );
-  const shipmentById = new Map(
-    filteredShipments.map((shipment) => [shipment.groupKey, shipment]),
-  );
-  const totalShipments = filteredShipments.length;
-  const shipmentsWithoutTracking = totalShipments - trackedShipments.length;
-  const shipmentsTrackedByVessel = trackedShipments.filter(
-    (item) => item.trackingMatchScope === "vessel",
-  ).length;
-  const totalWeight = filteredShipments.reduce(
-    (accumulator, shipment) => accumulator + shipment.netWeight,
-    0,
-  );
-  const totalBoxes = filteredShipments.reduce(
-    (accumulator, shipment) => accumulator + shipment.totalBoxes,
-    0,
-  );
-  const pendingShipments = filteredShipments.filter(
-    (shipment) => shipment.status === "Programado",
-  ).length;
-  const transitShipments = filteredShipments.filter(
-    (shipment) => shipment.status === "En transito",
-  ).length;
-  const arrivedShipments = filteredShipments.filter(
-    (shipment) => shipment.status === "Arribado",
-  ).length;
-  const activeFilters = countActiveFilters(
-    appliedFilters,
-    filterMeta.defaultFilters,
-  );
-  const selectedTrackedShipment = selectedTrackedShipmentId
-    ? (trackedShipmentById.get(selectedTrackedShipmentId) ?? null)
-    : null;
-  const selectedTrackedShipmentEtaValue = selectedTrackedShipment
-    ? (selectedTrackedShipment.shipment.eta ??
-      selectedTrackedShipment.tracking.etaReference)
-    : null;
-  const selectedTrackedShipmentEtaSource = selectedTrackedShipment
-    ? selectedTrackedShipment.shipment.eta
-      ? copy.etaSourceShipment
-      : (selectedTrackedShipment.tracking.etaReferenceType ??
-        copy.etaSourceCarrier)
-    : copy.etaSourceCarrier;
-
-  async function loadShipmentDocuments(
-    shipment: ShipmentSummary,
-    forceRefresh = false,
-  ) {
-    setShipmentDocumentsByKey((current) => {
-      const previous =
-        current[shipment.groupKey] ?? EMPTY_SHIPMENT_DOCUMENTS_STATE;
-
-      return {
-        ...current,
-        [shipment.groupKey]: {
-          status: "loading",
-          items: previous.items,
-          errorMessage: null,
-        },
-      };
-    });
-
-    try {
-      const response = await fetch(
-        `/api/embarques/${encodeURIComponent(shipment.id)}/documentos?temporada=${encodeURIComponent(shipment.season)}`,
-        {
-          method: "GET",
-          cache: "no-store",
-          headers: forceRefresh
-            ? {
-                "cache-control": "no-store",
-                pragma: "no-cache",
-              }
-            : undefined,
-        },
-      );
-      const payload = (await response.json()) as ShipmentDocumentsResponse;
-      const items = Array.isArray(payload.items) ? payload.items : null;
-
-      if (!response.ok || !items) {
-        throw new Error(payload.message?.trim() || copy.documentsLoadFailed);
-      }
-
-      setShipmentDocumentsByKey((current) => ({
-        ...current,
-        [shipment.groupKey]: {
-          status: "loaded",
-          items,
-          errorMessage: null,
-        },
-      }));
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error && error.message.trim().length > 0
-          ? error.message.trim()
-          : copy.documentsLoadFailed;
-
-      setShipmentDocumentsByKey((current) => {
-        const previous =
-          current[shipment.groupKey] ?? EMPTY_SHIPMENT_DOCUMENTS_STATE;
-
-        return {
-          ...current,
-          [shipment.groupKey]: {
-            status: "error",
-            items: previous.items,
-            errorMessage,
-          },
-        };
-      });
-    }
-  }
-
-  function openShipmentDocuments(
-    shipment: ShipmentSummary,
-    forceRefresh = false,
-  ) {
-    setSelectedShipmentId(shipment.groupKey);
-
-    const currentState = shipmentDocumentsByKey[shipment.groupKey];
-
-    if (
-      forceRefresh ||
-      !currentState ||
-      currentState.status === "error" ||
-      currentState.status === "idle"
-    ) {
-      void loadShipmentDocuments(shipment, forceRefresh);
-    }
-  }
-
-  const metricCards = [
-    {
-      label: locale === "en" ? "Shipments" : "Embarques",
-      value: formatWholeNumber(totalShipments),
-      note: copy.filteredBase,
-      accentClass: "text-[#f97316]",
-      iconClass: "bg-[#fff0e6] text-[#f97316]",
-      icon: <CalendarIcon />,
-    },
-    {
-      label: locale === "en" ? "Weight" : "Kilos",
-      value: formatWholeNumber(totalWeight),
-      note: copy.totalShippedWeight,
-      accentClass: "text-[#16a34a]",
-      iconClass: "bg-[#e6fbef] text-[#16a34a]",
-      icon: <BoxIcon />,
-    },
-    {
-      label: copy.readyToSail,
-      value: formatWholeNumber(pendingShipments),
-      note: `${formatPercent(pendingShipments, totalShipments, locale)} ${copy.totalShareSuffix}`,
-      accentClass: "text-[#f59e0b]",
-      iconClass: "bg-[#fff6de] text-[#f59e0b]",
-      icon: <ClockIcon />,
-      progress: percentage(pendingShipments, totalShipments),
-      progressClass: "bg-[#f59e0b]",
-    },
-    {
-      label: copy.inTransit,
-      value: formatWholeNumber(transitShipments),
-      note: `${formatPercent(transitShipments, totalShipments, locale)} ${copy.totalShareSuffix}`,
-      accentClass: "text-[#0ea5e9]",
-      iconClass: "bg-[#eaf7ff] text-[#0ea5e9]",
-      icon: <BoltIcon />,
-      progress: percentage(transitShipments, totalShipments),
-      progressClass: "bg-[#0ea5e9]",
-    },
-    {
-      label: locale === "en" ? "Arrived" : "Arribados",
-      value: formatWholeNumber(arrivedShipments),
-      note: `${formatPercent(arrivedShipments, totalShipments, locale)} ${copy.totalShareSuffix}`,
-      accentClass: "text-[#10b981]",
-      iconClass: "bg-[#e7fbf2] text-[#10b981]",
-      icon: <CheckCircleIcon />,
-      progress: percentage(arrivedShipments, totalShipments),
-      progressClass: "bg-[#10b981]",
-    },
-  ];
-
-  return (
-    <>
-      {errorMessage ? (
-        <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-900 shadow-[0_14px_32px_rgba(146,64,14,0.08)]">
-          {errorMessage}
-        </div>
-      ) : null}
-
-      <section className="space-y-6">
-        <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.14)] backdrop-blur-sm lg:p-5">
-          <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
-            <FilterSelect
-              label={copy.filterSpecies}
-              value={draftFilters.species}
-              options={filterMeta.speciesOptions}
-              icon={<FilterIcon />}
-              onChange={(value) =>
-                setDraftFilters((current) => ({ ...current, species: value }))
-              }
-            />
-            <FilterSelect
-              label={copy.filterDestination}
-              value={draftFilters.destination}
-              options={filterMeta.destinationOptions}
-              icon={<ShipWheelIcon />}
-              onChange={(value) =>
-                setDraftFilters((current) => ({
-                  ...current,
-                  destination: value,
-                }))
-              }
-            />
-            <FilterSelect
-              label={copy.filterSeason}
-              value={draftFilters.season}
-              options={filterMeta.seasonOptions}
-              icon={<SeasonIcon />}
-              onChange={(value) =>
-                setDraftFilters((current) => ({ ...current, season: value }))
-              }
-            />
-
-            <div className="flex flex-wrap gap-2 xl:justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setAppliedFilters(draftFilters);
-                  setSelectedShipmentId(null);
-                  setSelectedTrackedShipmentId(null);
-                }}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#2563eb] px-4 text-sm font-semibold text-white transition hover:bg-[#1d4ed8]"
-              >
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/16">
-                  <SparkleIcon />
-                </span>
-                {copy.apply}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftFilters(filterMeta.defaultFilters);
-                  setAppliedFilters(filterMeta.defaultFilters);
-                  setSelectedShipmentId(null);
-                  setSelectedTrackedShipmentId(null);
-                }}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#e5e7eb] px-4 text-sm font-semibold text-slate-700 transition hover:bg-[#d1d5db]"
-              >
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/5">
-                  <CloseIcon />
-                </span>
-                {copy.clear}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  downloadShipmentsAsCsv(filteredShipments, locale)
-                }
-                disabled={filteredShipments.length === 0}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-[#059669] px-4 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-[#9ca3af]"
-              >
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/14">
-                  <DownloadIcon />
-                </span>
-                {copy.exportCsv}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1 text-sm text-white/72">
-            <p>
-              {locale === "en"
-                ? `Showing ${formatWholeNumber(totalShipments)} shipments, ${formatWholeNumber(totalBoxes)} boxes and ${formatLocalizedWeight(totalWeight)}.`
-                : `Mostrando ${formatWholeNumber(totalShipments)} embarques, ${formatWholeNumber(totalBoxes)} cajas y ${formatLocalizedWeight(totalWeight)}.`}
-            </p>
-            <p>
-              {activeFilters > 0
-                ? locale === "en"
-                  ? `${formatWholeNumber(activeFilters)} active filters applied to this view.`
-                  : `${formatWholeNumber(activeFilters)} filtros activos sobre la vista.`
-                : copy.generalView}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-5">
-          {metricCards.map((card) => (
-            <article
-              key={card.label}
-              className="rounded-[1.6rem] border border-black/8 bg-white p-5 shadow-[0_24px_48px_rgba(13,13,13,0.14)]"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p
-                    className={`text-sm font-semibold uppercase tracking-widest ${card.accentClass}`}
-                  >
-                    {card.label}
-                  </p>
-                </div>
-                <span
-                  className={`inline-flex h-11 w-11 items-center justify-center rounded-[0.95rem] ${card.iconClass}`}
-                >
-                  {card.icon}
-                </span>
-              </div>
-
-              <p className="mt-5 text-5xl font-semibold tracking-[-0.04em] text-[#0f172a]">
-                {card.value}
-              </p>
-              <p className="mt-3 text-sm text-slate-500">{card.note}</p>
-
-              {card.progress !== undefined ? (
-                <div className="mt-5 h-2 rounded-full bg-slate-200">
-                  <div
-                    className={`h-2 rounded-full ${card.progressClass}`}
-                    style={{ width: `${card.progress}%` }}
-                  />
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section
-        id="tracking"
-        className="panel overflow-hidden p-5 sm:p-6 lg:p-7"
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <span className="inline-flex rounded-full bg-[#fff4df] px-3 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-[#ce7f1a]">
-              {copy.trackingKicker}
-            </span>
-            <h2 className="mt-4 text-3xl font-semibold text-cyl-ink">
-              {copy.trackingHeading}
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-cyl-ink/72">
-              {copy.trackingDescription}
-            </p>
-          </div>
-
-          <div className="rounded-full border border-black/8 bg-[#fff9ef] px-4 py-2 text-sm font-semibold text-cyl-ink">
-            {trackedShipments.length > 0
-              ? `${formatWholeNumber(trackedShipments.length)} ${copy.trackingActiveSuffix}`
-              : `${formatWholeNumber(totalShipments)} ${copy.visibleShipmentsSuffix}`}
-          </div>
-        </div>
-
-        {shipmentsTrackedByVessel > 0 ? (
-          <div className="mt-4 rounded-[1.2rem] border border-black/8 bg-[#f6f9ff] px-4 py-3 text-sm text-cyl-ink/72 shadow-[0_12px_24px_rgba(37,99,235,0.08)]">
-            {formatWholeNumber(shipmentsTrackedByVessel)}{" "}
-            {copy.vesselApproximation}
-          </div>
-        ) : null}
-
-        {trackingErrorMessage ? (
-          <div className="mt-5 rounded-[1.3rem] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900 shadow-[0_12px_24px_rgba(146,64,14,0.08)]">
-            {trackingErrorMessage}
-          </div>
-        ) : null}
-
-        <div className="mt-6 grid gap-5 xl:grid-cols-[1.4fr_0.9fr]">
-          <div className="relative min-h-90 overflow-hidden rounded-[1.85rem] border border-black/8 bg-[#d7e1e6] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
-            {trackedShipments.length === 0 ? (
-              <div className="flex h-full min-h-90 items-center justify-center bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.85),transparent_26%),radial-gradient(circle_at_76%_22%,rgba(255,255,255,0.8),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.24),rgba(175,190,198,0.34))] px-6 text-center">
-                <div className="max-w-md">
-                  <p className="text-lg font-semibold text-cyl-ink">
-                    {copy.noTrackingForView}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-cyl-ink/68">
-                    {filteredShipments.length === 0
-                      ? copy.adjustFiltersForTracking
-                      : copy.noLiveTrackingAvailable}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <TrackingMap
-                items={trackedShipments}
-                selectedShipmentId={selectedTrackedShipmentId}
-                onSelectShipment={setSelectedTrackedShipmentId}
-              />
-            )}
-          </div>
-
-          <div className="space-y-3">
-            {filteredShipments.length === 0 ? (
-              <EmptyState
-                title={copy.noTripsTitle}
-                description={copy.noTripsDescription}
-              />
-            ) : trackedShipments.length === 0 ? (
-              <EmptyState
-                title={copy.noLivePositionTitle}
-                description={copy.noLivePositionDescription}
-              />
-            ) : (
-              <>
-                <div className="rounded-[1.25rem] border border-black/8 bg-white px-4 py-3 text-sm text-cyl-ink/72 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
-                  {copy.mapInstruction}
-                </div>
-
-                {selectedTrackedShipment ? (
-                  <article className="rounded-[1.45rem] border border-black/8 bg-[#fffaf1] p-4 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyl-ink/55">
-                          EMB {selectedTrackedShipment.shipment.id}
-                        </p>
-                        <h3 className="mt-2 text-lg font-semibold text-cyl-ink">
-                          {selectedTrackedShipment.shipment.recipientName}
-                        </h3>
-                        {selectedTrackedShipment.trackingMatchScope ===
-                        "vessel" ? (
-                          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#2563eb]">
-                            {copy.approximateByVessel}
-                          </p>
-                        ) : null}
-                      </div>
-                      <span
-                        className={shipmentStatusBadge(
-                          selectedTrackedShipment.shipment.status,
-                        )}
-                      >
-                        {selectedTrackedShipment.tracking.statusCode ===
-                        "IN_TRANSIT"
-                          ? copy.inTransit
-                          : selectedTrackedShipment.tracking.statusLabel}
-                      </span>
-                    </div>
-
-                    <p className="mt-3 text-sm text-cyl-ink/70">
-                      {selectedTrackedShipment.shipment.route}
-                    </p>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-                          {copy.lastPosition}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-cyl-ink">
-                          {selectedTrackedShipment.tracking
-                            .lastEventLocationName ??
-                            selectedTrackedShipment.tracking.destinationName}
-                        </p>
-                        <p className="mt-1 text-xs text-cyl-ink/55">
-                          {formatTrackingDateValue(
-                            selectedTrackedShipment.tracking.lastEventDate ??
-                              selectedTrackedShipment.tracking.trackedAt,
-                            locale,
-                          )}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-                          ETA
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-cyl-ink">
-                          {formatTrackingDateValue(
-                            selectedTrackedShipmentEtaValue,
-                            locale,
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs text-cyl-ink/55">
-                          {selectedTrackedShipmentEtaSource}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-                          {copy.vesselContainer}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-cyl-ink">
-                          {selectedTrackedShipment.tracking.vesselName}
-                        </p>
-                        <p className="mt-1 text-xs text-cyl-ink/55">
-                          {selectedTrackedShipment.shipment.container}
-                          {selectedTrackedShipment.trackingMatchScope ===
-                          "vessel"
-                            ? ` · ${copy.trackingResolvedByVessel}`
-                            : ""}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-black/8 bg-white/80 p-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-                          {copy.estimatedProgress}
-                        </p>
-                        <p className="mt-2 text-sm font-semibold text-cyl-ink">
-                          {formatProgress(
-                            selectedTrackedShipment.tracking.progressPercentage,
-                            locale,
-                          )}
-                        </p>
-                        <p className="mt-1 text-xs text-cyl-ink/55">
-                          {formatDistance(
-                            selectedTrackedShipment.tracking
-                              .remainingDistanceKm,
-                            locale,
-                          )}{" "}
-                          {copy.remaining}
-                        </p>
-                      </div>
-                    </div>
-
-                    {selectedTrackedShipment.tracking.progressPercentage !==
-                    null ? (
-                      <div className="mt-4">
-                        <div className="h-2 rounded-full bg-[#e6edf5]">
-                          <div
-                            className="h-2 rounded-full bg-[#2563eb]"
-                            style={{
-                              width: `${selectedTrackedShipment.tracking.progressPercentage <= 0 ? 0 : Math.min(100, Math.max(selectedTrackedShipment.tracking.progressPercentage, 6))}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-2 flex items-center justify-between text-xs font-medium text-cyl-ink/55">
-                          <span>
-                            {selectedTrackedShipment.tracking.originName}
-                          </span>
-                          <span>
-                            {selectedTrackedShipment.tracking.destinationName}
-                          </span>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="mt-4 flex flex-wrap gap-3 border-t border-black/8 pt-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const documentsAnchorId =
-                            buildShipmentDocumentsAnchorId(
-                              selectedTrackedShipment.shipment.groupKey,
-                            );
-
-                          openShipmentDocuments(
-                            selectedTrackedShipment.shipment,
-                          );
-                          window.requestAnimationFrame(() => {
-                            document
-                              .getElementById(documentsAnchorId)
-                              ?.scrollIntoView({
-                                behavior: "smooth",
-                                block: "nearest",
-                              });
-                          });
-                        }}
-                        className="inline-flex items-center gap-2 rounded-full bg-[#111827] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1f2937]"
-                      >
-                        <EyeIcon />
-                        {copy.viewDocuments}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTrackedShipmentId(null)}
-                        className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-cyl-ink transition hover:bg-slate-50"
-                      >
-                        <CloseIcon />
-                        {copy.clearSelection}
-                      </button>
-                    </div>
-                  </article>
-                ) : (
-                  <EmptyState
-                    title={copy.selectTrackedShipmentTitle}
-                    description={copy.selectTrackedShipmentDescription}
-                  />
-                )}
-              </>
-            )}
-
-            {shipmentsWithoutTracking > 0 ? (
-              <div className="rounded-[1.25rem] border border-black/8 bg-white px-4 py-3 text-sm text-cyl-ink/72 shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
-                {formatWholeNumber(shipmentsWithoutTracking)}{" "}
-                {copy.shipmentsWithoutTracking}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section id="embarques" className="panel p-5 sm:p-6 lg:p-7">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="section-kicker text-cyl-gold">{copy.detailsKicker}</p>
-            <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
-              {copy.consolidatedShipments}
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-cyl-ink/72">
-              {copy.consolidatedDescription}
-            </p>
-          </div>
-
-          <div className="rounded-full border border-cyl-gold/30 bg-[#fff9ef] px-4 py-2 text-sm font-semibold text-cyl-ink">
-            {formatWholeNumber(totalShipments)} {copy.consolidatedSuffix}
-          </div>
-        </div>
-        <div id="documentos" className="h-0" />
-
-        {filteredShipments.length === 0 ? (
-          <div className="mt-6">
-            <EmptyState
-              title={copy.noShipmentsTitle}
-              description={copy.noShipmentsDescription}
-            />
-          </div>
-        ) : (
-          <div className="table-shell mt-6 overflow-x-auto">
-            <table className="min-w-330">
-              <thead>
-                <tr>
-                  <th>{copy.tableShipment}</th>
-                  <th>{copy.tableReceiver}</th>
-                  <th>{copy.tableSpeciesVariety}</th>
-                  <th>{copy.tableVesselContainer}</th>
-                  <th>{copy.tableEtdEta}</th>
-                  <th>{copy.tableAtdAta}</th>
-                  <th>{copy.tableTotals}</th>
-                  <th>BL</th>
-                  <th>{copy.tableDocuments}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredShipments.map((shipment) => {
-                  const isSelected = shipment.groupKey === selectedShipmentId;
-                  const shipmentDocumentsState =
-                    shipmentDocumentsByKey[shipment.groupKey] ??
-                    EMPTY_SHIPMENT_DOCUMENTS_STATE;
-
-                  return (
-                    <Fragment key={shipment.groupKey}>
-                      <tr className={isSelected ? "is-selected" : undefined}>
-                        <td>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="inline-flex min-w-12 items-center justify-center rounded-2xl bg-[#111827] px-3 py-2 text-base font-semibold text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]">
-                              {shipment.id}
-                            </div>
-                            <span
-                              className={shipmentStatusBadge(shipment.status)}
-                            >
-                              {translateShipmentStatus(shipment.status, locale)}
-                            </span>
-                          </div>
-                          <div className="mt-3 text-sm font-semibold text-cyl-ink/82">
-                            {shipment.originPort}
-                          </div>
-                          <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/42">
-                            {copy.toDestination} {shipment.destinationPort}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold leading-6 text-cyl-ink">
-                            {shipment.recipientName}
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-[#f8f1df] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-cyl-ink/64">
-                              {shipment.recipientCode}
-                            </span>
-                            <span className="rounded-full bg-[#f4f4f5] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-cyl-ink/56">
-                              {shipment.recipientGroup}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-sm text-cyl-ink/60">
-                            {shipment.market}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold leading-6 text-cyl-ink">
-                            {shipment.species.join(" · ")}
-                          </div>
-                          <div className="mt-1 text-sm text-cyl-ink/60">
-                            {shipment.varieties.join(" · ")}
-                          </div>
-                          <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyl-ink/38">
-                            {formatWholeNumber(shipment.producers.length)}{" "}
-                            {copy.growers}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold leading-6 text-cyl-ink">
-                            {shipment.vesselName}
-                          </div>
-                          <div className="mt-1 text-sm text-cyl-ink/60">
-                            {shipment.container}
-                          </div>
-                          <div className="mt-3 inline-flex rounded-full bg-[#eef6fb] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#0f5f78]">
-                            {shipment.shippingLine}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="space-y-2">
-                            <div className="rounded-2xl border border-black/6 bg-[#fff8ea] px-3 py-2">
-                              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-cyl-ink/42">
-                                ETD
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-cyl-ink">
-                                {formatLocalizedDate(shipment.etd)}
-                              </div>
-                            </div>
-                            <div className="rounded-2xl border border-black/6 bg-[#f6f9fd] px-3 py-2">
-                              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-cyl-ink/42">
-                                ETA
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-cyl-ink">
-                                {formatLocalizedDate(shipment.eta)}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="space-y-2">
-                            <div className="rounded-2xl border border-black/6 bg-[#eef9f2] px-3 py-2">
-                              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-cyl-ink/42">
-                                ATD
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-cyl-ink">
-                                {formatLocalizedDate(shipment.atd)}
-                              </div>
-                            </div>
-                            <div className="rounded-2xl border border-black/6 bg-[#f8f7fb] px-3 py-2">
-                              <div className="text-[0.66rem] font-semibold uppercase tracking-[0.18em] text-cyl-ink/42">
-                                ATA
-                              </div>
-                              <div className="mt-1 text-sm font-semibold text-cyl-ink">
-                                {formatLocalizedDate(shipment.ata)}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="text-lg font-semibold tracking-[-0.03em] text-cyl-ink">
-                            {formatWholeNumber(shipment.totalBoxes)}
-                          </div>
-                          <div className="text-sm text-cyl-ink/58">
-                            {copy.totalBoxes}
-                          </div>
-                          <div className="mt-3 text-sm font-semibold text-cyl-ink">
-                            {formatLocalizedWeight(shipment.netWeight)}
-                          </div>
-                          <div className="text-sm text-cyl-ink/58">
-                            {formatWholeNumber(shipment.pallets)} {copy.pallets}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="font-semibold leading-6 text-cyl-ink">
-                            {shipment.bl}
-                          </div>
-                          <div className="mt-1 text-sm text-cyl-ink/60">
-                            {shipment.booking}
-                          </div>
-                          <div className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyl-ink/38">
-                            {copy.bookingAwb}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="min-w-44 rounded-[1.2rem] border border-black/8 bg-white/80 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
-                            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-cyl-ink/42">
-                              {shipmentDocumentsState.status === "loaded"
-                                ? `${formatWholeNumber(shipmentDocumentsState.items.length)} ${copy.docsShort}`
-                                : copy.secureApi}
-                            </div>
-                            <div className="mt-3 flex flex-col gap-2">
-                              <button
-                                type="button"
-                                onClick={() => openShipmentDocuments(shipment)}
-                                className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-3 py-2 text-xs font-semibold transition ${
-                                  isSelected
-                                    ? "bg-[#111827] text-white shadow-[0_10px_20px_rgba(15,23,42,0.16)]"
-                                    : "border border-black/10 bg-white text-cyl-ink hover:bg-slate-50"
-                                }`}
-                              >
-                                <EyeIcon />
-                                {copy.viewDocs}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openShipmentDocuments(
-                                    shipment,
-                                    shipmentDocumentsState.status === "loaded",
-                                  )
-                                }
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
-                              >
-                                <DownloadIcon />
-                                {shipmentDocumentsState.status === "loaded" ||
-                                shipmentDocumentsState.status === "error"
-                                  ? copy.reloadDocuments
-                                  : copy.loadDocuments}
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {isSelected ? (
-                        <tr>
-                          <td
-                            colSpan={9}
-                            className="bg-transparent px-4 pb-4 pt-0"
-                          >
-                            <InlineShipmentDocumentsPanel
-                              anchorId={buildShipmentDocumentsAnchorId(
-                                shipment.groupKey,
-                              )}
-                              copy={copy}
-                              locale={locale}
-                              shipment={shipment}
-                              state={shipmentDocumentsState}
-                              onClose={() => setSelectedShipmentId(null)}
-                              onReload={() =>
-                                void loadShipmentDocuments(shipment, true)
-                              }
-                            />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </>
-  );
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  icon,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  icon: ReactNode;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block rounded-[1.35rem] border border-black/8 bg-white px-4 py-3 shadow-[0_12px_30px_rgba(0,0,0,0.08)]">
-      <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-cyl-ink/50">
-        {label}
-      </span>
-      <div className="mt-2 flex items-center gap-3">
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[0.95rem] bg-[#f8f3e8] text-cyl-ink">
-          {icon}
-        </span>
-        <div className="relative min-w-0 flex-1">
-          <select
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="w-full appearance-none bg-transparent pr-8 text-sm font-semibold text-cyl-ink outline-none"
-          >
-            {options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-          <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-cyl-ink/45">
-            <ChevronDownIcon />
-          </span>
-        </div>
-      </div>
-    </label>
-  );
-}
-
-function EmptyState({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-dashed border-black/12 bg-[#fffdf8] p-6 text-center">
-      <p className="text-lg font-semibold text-cyl-ink">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-cyl-ink/68">{description}</p>
-    </div>
-  );
-}
-
-function buildShipmentDocumentsAnchorId(groupKey: string) {
-  return `documentos-${groupKey.replaceAll("|", "-")}`;
-}
-
-function InlineShipmentDocumentsPanel({
-  anchorId,
-  copy,
-  locale,
-  shipment,
-  state,
-  onClose,
-  onReload,
-}: {
-  anchorId: string;
-  copy: (typeof dashboardCopy)[PortalLocale];
-  locale: PortalLocale;
-  shipment: ShipmentSummary;
-  state: ShipmentDocumentsLoadState;
-  onClose: () => void;
-  onReload: () => void;
-}) {
-  return (
-    <div
-      id={anchorId}
-      className="rounded-[1.6rem] border border-black/8 bg-[#fffaf1] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.08)]"
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="section-kicker text-cyl-gold">
-              {copy.shipmentDocuments}
-            </p>
-            <span className="rounded-full bg-[#111827] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyl-gold">
-              EMB {shipment.id}
-            </span>
-            <span className={shipmentStatusBadge(shipment.status)}>
-              {translateShipmentStatus(shipment.status, locale, "badge")}
-            </span>
-          </div>
-          <h3 className="mt-3 text-2xl font-semibold text-cyl-ink">
-            {shipment.recipientName}
-          </h3>
-          <p className="mt-1 text-sm leading-6 text-cyl-ink/70">
-            {shipment.vesselName} · {shipment.container} · {shipment.route}
-          </p>
-          <p className="mt-2 text-sm text-cyl-ink/58">
-            {copy.documentsLiveHint}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onReload}
-            disabled={state.status === "loading"}
-            className="inline-flex items-center gap-2 rounded-full bg-[#059669] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-[#9ca3af]"
-          >
-            <DownloadIcon />
-            {state.status === "loaded" || state.status === "error"
-              ? copy.reloadDocuments
-              : copy.loadDocuments}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-cyl-ink transition hover:bg-slate-50"
-          >
-            <CloseIcon />
-            {copy.close}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
-        <div className="rounded-[1.15rem] border border-black/8 bg-white/88 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-            {copy.tripDates}
-          </p>
-          <p className="mt-2 text-sm text-cyl-ink">
-            ETD {formatDate(shipment.etd, locale)} · ETA{" "}
-            {formatDate(shipment.eta, locale)}
-          </p>
-          <p className="mt-1 text-sm text-cyl-ink/70">
-            ATD {formatDate(shipment.atd, locale)} · ATA{" "}
-            {formatDate(shipment.ata, locale)}
-          </p>
-        </div>
-        <div className="rounded-[1.15rem] border border-black/8 bg-white/88 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-ink/55">
-            {copy.commercialData}
-          </p>
-          <p className="mt-2 text-sm text-cyl-ink">
-            BL {shipment.bl} · Booking {shipment.booking}
-          </p>
-          <p className="mt-1 text-sm text-cyl-ink/70">
-            {shipment.shippingLine} · {shipment.market}
-          </p>
-        </div>
-      </div>
-
-      <ShipmentDocumentsGrid
-        copy={copy}
-        locale={locale}
-        state={state}
-        onRetry={onReload}
-      />
-    </div>
-  );
-}
-
-function ShipmentDocumentsGrid({
-  copy,
-  locale,
-  state,
-  onRetry,
-}: {
-  copy: (typeof dashboardCopy)[PortalLocale];
-  locale: PortalLocale;
-  state: ShipmentDocumentsLoadState;
-  onRetry: () => void;
-}) {
-  if (
-    (state.status === "idle" || state.status === "loading") &&
-    state.items.length === 0
-  ) {
-    return (
-      <div className="mt-5 rounded-[1.15rem] border border-black/8 bg-white/88 px-4 py-4 text-sm font-medium text-cyl-ink/68">
-        {copy.loadingDocuments}
-      </div>
-    );
-  }
-
-  if (state.status === "error" && state.items.length === 0) {
-    return (
-      <div className="mt-5 rounded-[1.15rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900 shadow-[0_12px_24px_rgba(146,64,14,0.08)]">
-        <p>{state.errorMessage ?? copy.documentsLoadFailed}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-50"
-        >
-          <SparkleIcon />
-          {copy.retry}
-        </button>
-      </div>
-    );
-  }
-
-  if (state.status === "loaded" && state.items.length === 0) {
-    return (
-      <div className="mt-5 rounded-[1.15rem] border border-black/8 bg-white/88 px-4 py-4 text-sm text-cyl-ink/68">
-        {copy.noDocumentsAvailable}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-5 space-y-3">
-      {state.status === "loading" ? (
-        <div className="rounded-[1.05rem] border border-black/8 bg-[#eef6fb] px-4 py-3 text-sm text-cyl-ink/72">
-          {copy.loadingDocuments}
-        </div>
-      ) : null}
-
-      {state.status === "error" && state.errorMessage ? (
-        <div className="rounded-[1.05rem] border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
-          {state.errorMessage}
-        </div>
-      ) : null}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {state.items.map((document) => (
-          <div
-            key={document.id}
-            className="rounded-[1.15rem] border border-black/8 bg-white/88 px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-cyl-ink">
-                  {document.type}
-                </p>
-                <p className="mt-1 break-all text-sm text-cyl-ink/65">
-                  {document.originalName ?? copy.noData}
-                </p>
-              </div>
-              <span className={documentStateBadge(document.status)}>
-                {translateDocumentState(document.status, locale)}
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-2 text-xs text-cyl-ink/58 sm:grid-cols-2">
-              <p>
-                <span className="font-semibold text-cyl-ink/72">
-                  {copy.documentType}:
-                </span>{" "}
-                {document.type}
-              </p>
-              <p>
-                <span className="font-semibold text-cyl-ink/72">
-                  {copy.fileSize}:
-                </span>{" "}
-                {formatFileSize(document.size, locale)}
-              </p>
-              <p className="sm:col-span-2">
-                <span className="font-semibold text-cyl-ink/72">
-                  {copy.documentUpdatedAt}:
-                </span>{" "}
-                {formatTrackingDateValue(document.updatedAt, locale)}
-              </p>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <a
-                href={document.viewUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-cyl-ink transition hover:bg-slate-50 text-black"
-              >
-                <EyeIcon />
-                {copy.openDocument}
-              </a>
-              <a
-                href={document.downloadUrl}
-                className="inline-flex items-center gap-2 rounded-full bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
-              >
-                <DownloadIcon />
-                {copy.download}
-              </a>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function buildFilterMeta(rows: EmbarqueRow[], locale: PortalLocale) {
-  const copy = dashboardCopy[locale];
-  const speciesOptions = [
-    copy.allSpecies,
-    ...collectUniqueOptions(rows.map((row) => row.NomEspecie)),
-  ];
-  const destinationOptions = [
-    copy.allDestinations,
-    ...collectUniqueOptions(rows.map((row) => row.NomPuertoDestino)),
-  ];
-  const seasonValues = collectUniqueOptions(
-    rows.map((row) => row.CodigoTemporada),
-  );
-
-  return {
-    speciesOptions,
-    destinationOptions,
-    seasonOptions: [copy.allSeasons, ...seasonValues],
-    defaultFilters: {
-      species: copy.allSpecies,
-      destination: copy.allDestinations,
-      season: seasonValues[0] ?? copy.allSeasons,
-    } satisfies FilterState,
-  };
-}
-
-function matchesRowWithFilters(
-  row: EmbarqueRow,
-  filters: FilterState,
-  defaultFilters: FilterState,
-) {
-  const matchesSpecies =
-    filters.species === defaultFilters.species ||
-    row.NomEspecie === filters.species;
-  const matchesDestination =
-    filters.destination === defaultFilters.destination ||
-    row.NomPuertoDestino === filters.destination;
-  const matchesSeason =
-    filters.season === defaultFilters.season ||
-    row.CodigoTemporada === filters.season;
-
-  return matchesSpecies && matchesDestination && matchesSeason;
-}
-
-function collectUniqueOptions(values: Array<string | null | undefined>) {
-  return Array.from(
-    new Set(
-      values.filter((value): value is string => Boolean(value && value.trim())),
-    ),
-  );
-}
-
-function percentage(value: number, total: number) {
-  if (total === 0) {
-    return 0;
-  }
-
-  return (value / total) * 100;
-}
-
-function formatPercent(value: number, total: number, locale: PortalLocale) {
-  if (total === 0) {
-    return locale === "en" ? "0.0%" : "0,0%";
-  }
-
-  return `${getDecimalFormatter(locale).format((value / total) * 100)}%`;
-}
-
-function countActiveFilters(filters: FilterState, defaultFilters: FilterState) {
-  return [
-    filters.species !== defaultFilters.species,
-    filters.destination !== defaultFilters.destination,
-    filters.season !== defaultFilters.season,
-  ].filter(Boolean).length;
-}
-
-function normalizeContainerKey(value: string | null | undefined) {
-  return (value ?? "").trim().toUpperCase();
-}
-
-function normalizeVesselKey(value: string | null | undefined) {
-  return (value ?? "").trim().toLowerCase();
-}
-
-function formatTrackingDateValue(
-  value: string | null | undefined,
-  locale: PortalLocale,
-) {
-  if (!value) {
-    return dashboardCopy[locale].noData;
-  }
-
-  const dateMatch = value.match(/\d{4}-\d{2}-\d{2}/);
-
-  if (dateMatch) {
-    return formatDate(dateMatch[0], locale);
-  }
-
-  const parsedDate = new Date(value);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value;
-  }
-
-  return formatDate(parsedDate.toISOString().slice(0, 10), locale);
-}
-
-function formatProgress(
-  value: number | null | undefined,
-  locale: PortalLocale,
-) {
-  if (value == null) {
-    return dashboardCopy[locale].noData;
-  }
-
-  return `${getDecimalFormatter(locale).format(value)}%`;
-}
-
-function formatDistance(
-  value: number | null | undefined,
-  locale: PortalLocale,
-) {
-  if (value == null) {
-    return dashboardCopy[locale].noData;
-  }
-
-  return `${formatNumber(value, locale)} km`;
+function escapeCsvValue(value: string | number | null | undefined) {
+  const normalized = value == null ? "" : String(value);
+  if (/[";\n]/.test(normalized)) return `"${normalized.replaceAll('"', '""')}"`;
+  return normalized;
 }
 
 function downloadShipmentsAsCsv(
   shipments: ShipmentSummary[],
   locale: PortalLocale,
 ) {
-  const copy = dashboardCopy[locale];
+  const c = dashboardCopy[locale];
   const headers = [
-    copy.manifestShipment,
-    locale === "en" ? "Season" : "Temporada",
-    copy.manifestReceiver,
-    locale === "en" ? "Group" : "Grupo",
-    copy.manifestConsignee,
-    locale === "en" ? "OriginPort" : "PuertoOrigen",
-    locale === "en" ? "DestinationPort" : "PuertoDestino",
-    locale === "en" ? "Country" : "Pais",
-    locale === "en" ? "Species" : "Especie",
-    locale === "en" ? "Variety" : "Variedad",
-    copy.manifestVessel,
-    copy.manifestShippingLine,
-    copy.manifestContainer,
-    locale === "en" ? "Boxes" : "Cajas",
-    locale === "en" ? "NetWeight" : "PesoNeto",
-    "ETD",
-    "ETA",
-    "ATD",
-    "ATA",
-    "BL",
-    locale === "en" ? "Booking" : "Booking",
+    "ID",
+    c.seasonLabel,
+    "Recibidor",
+    "Consignatario",
+    c.originPort,
+    c.destinationPort,
+    c.vessel,
+    c.containerLabel,
+    c.blLabel,
+    c.bookingLabel,
+    "Cajas",
+    "Kg neto",
+    c.etdLabel,
+    c.etaLabel,
+    c.atdLabel,
+    c.ataLabel,
+    "Estado",
   ];
 
-  const lines = shipments.map((shipment) =>
+  const lines = shipments.map((s) =>
     [
-      shipment.id,
-      shipment.season,
-      shipment.recipientName,
-      shipment.recipientGroup,
-      shipment.consignee,
-      shipment.originPort,
-      shipment.destinationPort,
-      shipment.country,
-      shipment.species.join(" | "),
-      shipment.varieties.join(" | "),
-      shipment.vesselName,
-      shipment.shippingLine,
-      shipment.container,
-      shipment.totalBoxes,
-      shipment.netWeight,
-      shipment.etd,
-      shipment.eta,
-      shipment.atd,
-      shipment.ata,
-      shipment.bl,
-      shipment.booking,
+      s.id,
+      s.season,
+      s.recipientName,
+      s.consignee,
+      s.originPort,
+      s.destinationPort,
+      s.vesselName,
+      s.container,
+      s.bl,
+      s.booking,
+      s.totalBoxes,
+      s.netWeight,
+      s.etd,
+      s.eta,
+      s.atd,
+      s.ata,
+      statusLabel(s.status, locale),
     ]
       .map(escapeCsvValue)
       .join(";"),
   );
 
   const csvContent = `\uFEFF${headers.join(";")}\n${lines.join("\n")}`;
-  const blob = new Blob([csvContent], {
-    type: "text/csv;charset=utf-8;",
-  });
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  const date = new Date().toISOString().slice(0, 10);
-
   anchor.href = url;
-  anchor.download = `${copy.csvFilePrefix}-${date}.csv`;
+  anchor.download = `${c.csvFilePrefix}-${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
   window.URL.revokeObjectURL(url);
 }
 
-function escapeCsvValue(value: string | number | null | undefined) {
-  const normalized = value == null ? "" : String(value);
+// ─── Icons ────────────────────────────────────────────────────────────────────
 
-  if (/[";\n]/.test(normalized)) {
-    return `"${normalized.replaceAll('"', '""')}"`;
-  }
-
-  return normalized;
-}
-
-function shipmentStatusBadge(status: ShipmentSummary["status"]) {
-  switch (status) {
-    case "Arribado":
-      return "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700";
-    case "En transito":
-      return "inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700";
-    default:
-      return "inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700";
-  }
-}
-
-function documentStateBadge(state: string) {
-  switch (state.trim().toUpperCase()) {
-    case "Emitido":
-    case "EMITIDO":
-    case "Confirmado":
-    case "CONFIRMADO":
-    case "Completo":
-    case "COMPLETO":
-    case "Vigente":
-    case "VIGENTE":
-    case "CARGADO":
-    case "DISPONIBLE":
-      return "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700";
-    case "Parcial":
-    case "PARCIAL":
-      return "rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700";
-    default:
-      return "rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700";
-  }
-}
-
-function formatFileSize(
-  value: number | null | undefined,
-  locale: PortalLocale,
-) {
-  if (value == null || value <= 0) {
-    return dashboardCopy[locale].noData;
-  }
-
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${getDecimalFormatter(locale).format(size)} ${units[unitIndex]}`;
-}
-
-function CalendarIcon() {
+function SearchIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
     >
-      <path d="M8 3v3" />
-      <path d="M16 3v3" />
-      <rect x="4" y="6" width="16" height="14" rx="2" />
-      <path d="M4 10h16" />
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16.5 16.5 3.5 3.5" />
     </svg>
   );
 }
 
-function BoxIcon() {
+function SpinnerIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
+      fill="none"
+      className={`${className} dashboard-spinner`}
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="2"
+        opacity="0.22"
+      />
+      <path
+        d="M12 3a9 9 0 0 1 9 9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg
+      viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
     >
-      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-      <path d="M12 12 20 7.5" />
-      <path d="M12 12 4 7.5" />
-      <path d="M12 12v9" />
+      <path d="m5 7.5 5 5 5-5" />
     </svg>
   );
 }
 
-function ClockIcon() {
+function ChevronUpIcon() {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.8"
-      className="h-5 w-5"
+      className="h-4 w-4"
     >
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 8v4l2.5 2.5" />
-    </svg>
-  );
-}
-
-function BoltIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <path d="M13 2 6 13h5l-1 9 8-12h-5l0-8Z" />
-    </svg>
-  );
-}
-
-function CheckCircleIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <circle cx="12" cy="12" r="8" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
-  );
-}
-
-function FilterIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <path d="M4 6h16" />
-      <path d="M7 12h10" />
-      <path d="M10 18h4" />
-    </svg>
-  );
-}
-
-function ShipWheelIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <circle cx="12" cy="12" r="3.5" />
-      <path d="M12 2v4" />
-      <path d="m4.9 4.9 2.8 2.8" />
-      <path d="M2 12h4" />
-      <path d="m4.9 19.1 2.8-2.8" />
-      <path d="M12 18v4" />
-      <path d="m19.1 19.1-2.8-2.8" />
-      <path d="M18 12h4" />
-      <path d="m19.1 4.9-2.8 2.8" />
-    </svg>
-  );
-}
-
-function SeasonIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      className="h-5 w-5"
-    >
-      <path d="M12 3v18" />
-      <path d="M3 12h18" />
-      <path d="m5.5 5.5 13 13" />
-      <path d="m18.5 5.5-13 13" />
-    </svg>
-  );
-}
-
-function SparkleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
-      <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="h-3.5 w-3.5"
-    >
-      <path d="m6 6 12 12" />
-      <path d="M18 6 6 18" />
+      <path d="m5 12.5 5-5 5 5" />
     </svg>
   );
 }
@@ -2033,10 +592,1416 @@ function EyeIcon() {
   );
 }
 
-function ChevronDownIcon() {
+function SparkleIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-      <path d="m5.5 7.5 4.5 4.5 4.5-4.5" />
+    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+      <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" />
     </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-3.5 w-3.5"
+    >
+      <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-4 w-4"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="h-4 w-4"
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-3.5 w-3.5"
+    >
+      <path d="M12 2C8.7 2 6 4.7 6 8c0 5 6 13 6 13s6-8 6-13c0-3.3-2.7-6-6-6Z" />
+      <circle cx="12" cy="8" r="2" />
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h6M9 17h4" />
+    </svg>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SummaryCard({
+  label,
+  count,
+  subtitle,
+  accentClass,
+}: {
+  label: string;
+  count: number;
+  subtitle: string;
+  accentClass: string;
+}) {
+  return (
+    <article className="rounded-[1.6rem] border border-black/8 bg-white p-6 shadow-[0_16px_40px_rgba(13,13,13,0.10)]">
+      <p
+        className={`text-xs font-bold uppercase tracking-[0.2em] ${accentClass}`}
+      >
+        {label}
+      </p>
+      <p className="mt-3 text-5xl font-semibold tracking-[-0.03em] text-[#0f172a]">
+        {formatNumber(count)}
+      </p>
+      <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+    </article>
+  );
+}
+
+function ShipmentDocumentsGrid({
+  copy,
+  locale,
+  state,
+  onRetry,
+}: {
+  copy: (typeof dashboardCopy)[PortalLocale];
+  locale: PortalLocale;
+  state: ShipmentDocumentsLoadState;
+  onRetry: () => void;
+}) {
+  if (
+    (state.status === "idle" || state.status === "loading") &&
+    state.items.length === 0
+  ) {
+    return (
+      <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm font-medium text-cyl-ink/68">
+        {copy.loadingDocs}
+      </div>
+    );
+  }
+
+  if (state.status === "error" && state.items.length === 0) {
+    return (
+      <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900">
+        <p>{state.errorMessage ?? copy.docsLoadFailed}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-50"
+        >
+          <SparkleIcon />
+          {copy.retry}
+        </button>
+      </div>
+    );
+  }
+
+  if (state.status === "loaded" && state.items.length === 0) {
+    return (
+      <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm text-cyl-ink/68">
+        {copy.noDocsAvailable}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      {state.status === "loading" ? (
+        <div className="rounded-2xl border border-black/8 bg-[#eef6fb] px-4 py-3 text-sm text-cyl-ink/72">
+          {copy.loadingDocs}
+        </div>
+      ) : null}
+
+      {state.status === "error" && state.errorMessage ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
+          {state.errorMessage}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {state.items.map((doc) => (
+          <div
+            key={doc.id}
+            className="rounded-[1.1rem] border border-black/8 bg-white px-4 py-4 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2">
+                <span className={`mt-1 ${documentStateBadgeDot(doc.status)}`} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-snug text-cyl-ink">
+                    {doc.type}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-cyl-ink/55">
+                    {doc.originalName ?? copy.noData}
+                  </p>
+                </div>
+              </div>
+              <span className="shrink-0 text-xs font-medium text-cyl-ink/55">
+                {translateDocumentState(doc.status, locale)}
+              </span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-xs text-cyl-ink/50">
+              <span>
+                {copy.fileSize}: {formatFileSize(doc.size, locale)}
+              </span>
+              <span>
+                {copy.docUpdatedAt}: {formatTrackingDate(doc.updatedAt, locale)}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={doc.viewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-black/12 bg-[#1f2937]/85 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#111827]"
+              >
+                <EyeIcon />
+                {copy.openDocument}
+              </a>
+              <a
+                href={doc.downloadUrl}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#047857]"
+              >
+                <DownloadIcon />
+                {copy.download}
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrackingTimeline({
+  shipment,
+  tracking,
+  copy,
+  locale,
+}: {
+  shipment: ShipmentSummary;
+  tracking: ContainerTrackingSnapshot | null;
+  copy: (typeof dashboardCopy)[PortalLocale];
+  locale: PortalLocale;
+}) {
+  // Fecha_ATA and Fecha_ATD in the DB view are always populated (ATA = ETA, ATD = ETD).
+  // Only treat them as "done" when the date has already passed.
+  const today = new Date().toISOString().slice(0, 10);
+  const hasEtd = Boolean(shipment.etd);
+  // tracking !== null means the container is being actively tracked → it has departed
+  const hasAtd =
+    Boolean(shipment.atd && shipment.atd <= today) || tracking !== null;
+  const hasAta = Boolean(shipment.ata && shipment.ata <= today);
+
+  // Actual departure date: prefer first completed routePoint from tracking events
+  const trackingDeparturePoint = tracking?.routePoints?.find(
+    (p) => p.state === "completed" && p.date,
+  );
+  const departureDate = trackingDeparturePoint?.date
+    ? formatTrackingDate(trackingDeparturePoint.date, locale)
+    : hasAtd && shipment.atd
+      ? formatDate(shipment.atd, locale)
+      : hasEtd
+        ? formatDate(shipment.etd, locale)
+        : null;
+
+  // Use tracking ETA if available (more accurate than internal DB ETD/ETA)
+  const etaDisplay = hasAta
+    ? formatDate(shipment.ata, locale)
+    : tracking?.etaReference
+      ? formatTrackingDate(tracking.etaReference, locale)
+      : shipment.eta
+        ? formatDate(shipment.eta, locale)
+        : null;
+  const etaIsEstimate =
+    !hasAta && Boolean(tracking?.etaReference ?? shipment.eta);
+  const etaSubtitle = etaIsEstimate
+    ? tracking?.etaReference
+      ? locale === "es"
+        ? "ETA (tracking)"
+        : "ETA (tracking)"
+      : locale === "es"
+        ? "ETA estimado"
+        : "Estimated ETA"
+    : null;
+
+  // Last known tracking event for In Transit step
+  const inTransitDate = tracking?.lastEventDate
+    ? formatTrackingDate(tracking.lastEventDate, locale)
+    : null;
+  const inTransitSubtitle =
+    tracking?.lastEventLocationName ?? tracking?.lastEventDescription ?? null;
+
+  type Step = {
+    label: string;
+    date: string | null;
+    subtitle: string | null;
+    done: boolean;
+    active: boolean;
+  };
+
+  const steps: Step[] = [
+    {
+      label: copy.stepLoaded,
+      date: hasEtd ? formatDate(shipment.etd, locale) : null,
+      subtitle: null,
+      // cargo is "loaded/ready" once we have an ETD
+      done: hasEtd,
+      active: false,
+    },
+    {
+      label: copy.stepDeparted,
+      date: departureDate,
+      subtitle: null,
+      done: hasAtd,
+      // ETD is set but vessel hasn't actually departed yet
+      active: hasEtd && !hasAtd,
+    },
+    {
+      label: copy.stepInTransit,
+      date: inTransitDate,
+      subtitle: hasAtd && !hasAta ? inTransitSubtitle : null,
+      done: hasAta,
+      active: hasAtd && !hasAta,
+    },
+    {
+      label: copy.stepArrived,
+      date: etaDisplay,
+      subtitle: etaSubtitle,
+      done: hasAta,
+      active: false,
+    },
+  ];
+
+  // Connector between step i-1 and step i is green when step i-1 is done
+  function connectorColor(index: number, side: "left" | "right") {
+    if (side === "left") {
+      if (index === 0) return "invisible";
+      return steps[index - 1].done ? "bg-emerald-400" : "bg-slate-200";
+    }
+    if (index === steps.length - 1) return "invisible";
+    return steps[index].done ? "bg-emerald-400" : "bg-slate-200";
+  }
+
+  return (
+    <div>
+      <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-cyl-ink/55">
+        {copy.trackingTitle}
+      </p>
+      <div className="flex items-start">
+        {steps.map((step, index) => (
+          <div key={step.label} className="flex flex-1 flex-col items-center">
+            <div className="flex w-full items-center">
+              <div
+                className={`h-0.5 flex-1 ${connectorColor(index, "left")}`}
+              />
+              <div
+                className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
+                  step.done
+                    ? "border-emerald-500 bg-emerald-500"
+                    : step.active
+                      ? "border-sky-500 bg-sky-100"
+                      : "border-slate-300 bg-white"
+                }`}
+              />
+              <div
+                className={`h-0.5 flex-1 ${connectorColor(index, "right")}`}
+              />
+            </div>
+            <p
+              className={`mt-2 text-center text-[0.65rem] font-semibold leading-tight ${
+                step.done
+                  ? "text-emerald-600"
+                  : step.active
+                    ? "text-sky-600"
+                    : "text-slate-400"
+              }`}
+            >
+              {step.label}
+            </p>
+            {step.date ? (
+              <p className="mt-0.5 text-center text-[0.6rem] text-cyl-ink/45">
+                {step.date}
+              </p>
+            ) : null}
+            {step.subtitle ? (
+              <p className="mt-0.5 line-clamp-2 text-center text-[0.58rem] leading-tight text-cyl-ink/35">
+                {step.subtitle}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      {tracking && tracking.progressPercentage !== null ? (
+        <div className="mt-5">
+          <div className="mb-1 flex items-center justify-between text-xs text-cyl-ink/55">
+            <span>{copy.trackingProgress}</span>
+            <span>{formatProgress(tracking.progressPercentage, locale)}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-200">
+            <div
+              className="h-1.5 rounded-full bg-sky-500"
+              style={{
+                width: `${Math.min(100, Math.max(0, tracking.progressPercentage))}%`,
+              }}
+            />
+          </div>
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-cyl-ink/50">
+            <MapPinIcon />
+            <span>
+              {tracking.lastEventLocationName ?? tracking.destinationName}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ShipmentExpandedRow({
+  shipment,
+  tracking,
+  docsState,
+  copy,
+  locale,
+  onLoadDocs,
+  onReloadDocs,
+  onClose,
+}: {
+  shipment: ShipmentSummary;
+  tracking: ContainerTrackingSnapshot | null;
+  docsState: ShipmentDocumentsLoadState;
+  copy: (typeof dashboardCopy)[PortalLocale];
+  locale: PortalLocale;
+  onLoadDocs: () => void;
+  onReloadDocs: () => void;
+  onClose: () => void;
+}) {
+  const metaRows: [string, string][] = [
+    [copy.blLabel, shipment.bl],
+    [copy.bookingLabel, shipment.booking],
+    [copy.etdLabel, formatDate(shipment.etd, locale)],
+    [copy.etaLabel, formatDate(shipment.eta, locale)],
+    [copy.atdLabel, formatDate(shipment.atd, locale)],
+    [copy.ataLabel, formatDate(shipment.ata, locale)],
+  ];
+
+  return (
+    <div className="px-4 pb-5 pt-2">
+      <div className="rounded-3xl border border-black/8 bg-[#fffaf1] p-5 shadow-[0_14px_30px_rgba(15,23,42,0.07)]">
+        {/* Header */}
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/8 pb-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyl-ink/55">
+              EMB {shipment.id} · {shipment.season}
+            </p>
+            <p className="mt-1 text-base font-semibold text-cyl-ink">
+              {shipment.vesselName} · {shipment.container}
+            </p>
+            <p className="mt-0.5 text-sm text-cyl-ink/60">
+              {shipment.originPort} → {shipment.destinationPort} ·{" "}
+              {shipment.shippingLine}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-cyl-ink transition hover:bg-slate-50"
+          >
+            <CloseIcon />
+            {copy.close}
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-6 lg:grid-cols-2">
+          {/* Tracking + metadata */}
+          <div className="space-y-4">
+            <TrackingTimeline
+              shipment={shipment}
+              tracking={tracking}
+              copy={copy}
+              locale={locale}
+            />
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {metaRows.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-black/6 bg-white/80 px-3 py-2"
+                >
+                  <p className="font-semibold text-cyl-ink/55">{label}</p>
+                  <p className="mt-0.5 text-cyl-ink">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Document center */}
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-cyl-ink/70">
+                <FileIcon />
+                <p className="text-xs font-bold uppercase tracking-[0.18em]">
+                  {copy.docsCenter}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={
+                  docsState.status === "idle" ? onLoadDocs : onReloadDocs
+                }
+                disabled={docsState.status === "loading"}
+                className={`dashboard-loading-button inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-slate-400 ${
+                  docsState.status === "loading" ? "is-busy" : ""
+                }`}
+              >
+                {docsState.status === "loading" ? (
+                  <SpinnerIcon className="h-3.5 w-3.5" />
+                ) : (
+                  <DownloadIcon />
+                )}
+                {docsState.status === "loading"
+                  ? copy.loadingDocs
+                  : docsState.status === "loaded" ||
+                      docsState.status === "error"
+                    ? copy.reloadDocs
+                    : copy.loadDocs}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-cyl-ink/50">{copy.docsHint}</p>
+
+            <ShipmentDocumentsGrid
+              copy={copy}
+              locale={locale}
+              state={docsState}
+              onRetry={onReloadDocs}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
+
+export function ClientHomeDashboard({
+  locale,
+  rows: initialRows,
+  trackingSnapshots,
+  vesselTrackingSnapshots,
+  seasons: initialSeasons,
+  defaultSeason,
+  errorMessage,
+}: ClientHomeDashboardProps) {
+  const copy = dashboardCopy[locale];
+
+  const [rows, setRows] = useState<EmbarqueRow[]>(initialRows);
+  const [selectedSeason, setSelectedSeason] = useState<string>(
+    defaultSeason ?? initialSeasons[0]?.code ?? "",
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchField, setSearchField] = useState<SearchField>("all");
+  const [etdFrom, setEtdFrom] = useState("");
+  const [etdTo, setEtdTo] = useState("");
+  const [etaFrom, setEtaFrom] = useState("");
+  const [etaTo, setEtaTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingSeason, setIsLoadingSeason] = useState(false);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [shipmentDocsByKey, setShipmentDocsByKey] = useState<
+    Record<string, ShipmentDocumentsLoadState>
+  >({});
+  const [mapSelectedKey, setMapSelectedKey] = useState<string | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  // ── Scroll to row after page/expand state settles ─────────────────────────
+  const pendingScrollToKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const key = pendingScrollToKeyRef.current;
+    if (!key) return;
+    const rowEl = document.getElementById(`row-${key}`);
+    if (rowEl) {
+      pendingScrollToKeyRef.current = null;
+      rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [currentPage, expandedKey]);
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const allShipments = useMemo(() => buildShipmentsFromRows(rows), [rows]);
+  const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+  const isSearchSettling =
+    searchQuery.trim().toLowerCase() !== normalizedSearchQuery;
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    searchField !== "all" ||
+    etdFrom ||
+    etdTo ||
+    etaFrom ||
+    etaTo,
+  );
+  const filteredShipments = useMemo(() => {
+    return allShipments.filter((shipment) => {
+      return (
+        matchesSearchField(shipment, normalizedSearchQuery, searchField) &&
+        matchesDateRange(shipment.etd, etdFrom, etdTo) &&
+        matchesDateRange(shipment.eta, etaFrom, etaTo)
+      );
+    });
+  }, [
+    allShipments,
+    normalizedSearchQuery,
+    searchField,
+    etdFrom,
+    etdTo,
+    etaFrom,
+    etaTo,
+  ]);
+  const filteredShipmentKeys = useMemo(
+    () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
+    [filteredShipments],
+  );
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredShipments.length / PAGE_SIZE),
+  );
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedShipments = useMemo(
+    () =>
+      filteredShipments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredShipments, safePage],
+  );
+
+  // ── Summary counts ────────────────────────────────────────────────────────
+  const { inTransitCount, arrivingSoonCount, docsReadyCount } = useMemo(() => {
+    const nowMs = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+    return {
+      inTransitCount: filteredShipments.filter(
+        (shipment) => shipment.status === "En transito",
+      ).length,
+      arrivingSoonCount: filteredShipments.filter((shipment) => {
+        if (shipment.status === "Arribado") return false;
+        if (!shipment.eta) return false;
+        const eta = new Date(`${shipment.eta}T00:00:00`).getTime();
+        return !isNaN(eta) && eta >= nowMs && eta <= nowMs + sevenDaysMs;
+      }).length,
+      docsReadyCount: filteredShipments.filter(
+        (shipment) => shipment.status === "Arribado",
+      ).length,
+    };
+  }, [filteredShipments]);
+
+  // ── Tracking lookup ───────────────────────────────────────────────────────
+  const trackingByContainer = useMemo(
+    () =>
+      new Map(
+        trackingSnapshots.map((snapshot) => [
+          normalizeContainerKey(snapshot.containerNumber),
+          snapshot,
+        ]),
+      ),
+    [trackingSnapshots],
+  );
+  const trackingByVessel = useMemo(
+    () =>
+      new Map(
+        vesselTrackingSnapshots.map((snapshot) => [
+          normalizeVesselKey(snapshot.vesselName),
+          snapshot,
+        ]),
+      ),
+    [vesselTrackingSnapshots],
+  );
+
+  const getTracking = useCallback(
+    (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      return (
+        trackingByContainer.get(normalizeContainerKey(shipment.container)) ??
+        trackingByVessel.get(normalizeVesselKey(shipment.vesselName)) ??
+        null
+      );
+    },
+    [trackingByContainer, trackingByVessel],
+  );
+
+  // ── Tracked items for map ─────────────────────────────────────────────────
+  const trackedItems = useMemo<TrackedShipmentItem[]>(() => {
+    return filteredShipments.reduce<TrackedShipmentItem[]>((acc, shipment) => {
+      const byContainer = trackingByContainer.get(
+        normalizeContainerKey(shipment.container),
+      );
+
+      if (byContainer) {
+        acc.push({
+          shipment,
+          tracking: byContainer,
+          trackingMatchScope: "container",
+        });
+        return acc;
+      }
+
+      const byVessel = trackingByVessel.get(
+        normalizeVesselKey(shipment.vesselName),
+      );
+
+      if (byVessel) {
+        acc.push({
+          shipment,
+          tracking: byVessel,
+          trackingMatchScope: "vessel",
+        });
+      }
+
+      return acc;
+    }, []);
+  }, [filteredShipments, trackingByContainer, trackingByVessel]);
+  const selectedMapShipment = useMemo(() => {
+    if (!mapSelectedKey) {
+      return null;
+    }
+
+    return (
+      filteredShipments.find(
+        (shipment) => shipment.groupKey === mapSelectedKey,
+      ) ?? null
+    );
+  }, [filteredShipments, mapSelectedKey]);
+  const selectedMapTracking = useMemo(() => {
+    if (!selectedMapShipment) {
+      return null;
+    }
+
+    return getTracking(selectedMapShipment);
+  }, [getTracking, selectedMapShipment]);
+  const handleMapSelection = useCallback((shipmentKey: string) => {
+    setMapSelectedKey((previousKey) =>
+      previousKey === shipmentKey ? null : shipmentKey,
+    );
+  }, []);
+  const clearFilters = useCallback(() => {
+    setSearchQuery("");
+    setSearchField("all");
+    setEtdFrom("");
+    setEtdTo("");
+    setEtaFrom("");
+    setEtaTo("");
+    setCurrentPage(1);
+  }, []);
+
+  useEffect(() => {
+    if (mapSelectedKey && !filteredShipmentKeys.has(mapSelectedKey)) {
+      setMapSelectedKey(null);
+    }
+
+    if (expandedKey && !filteredShipmentKeys.has(expandedKey)) {
+      setExpandedKey(null);
+    }
+  }, [expandedKey, filteredShipmentKeys, mapSelectedKey]);
+
+  // ── Season change ─────────────────────────────────────────────────────────
+  async function handleSeasonChange(season: string) {
+    if (season === selectedSeason || isLoadingSeason) return;
+    setSelectedSeason(season);
+    setCurrentPage(1);
+    setExpandedKey(null);
+    setSearchQuery("");
+    setSearchField("all");
+    setEtdFrom("");
+    setEtdTo("");
+    setEtaFrom("");
+    setEtaTo("");
+    setIsLoadingSeason(true);
+
+    try {
+      const response = await fetch(
+        `/api/embarques?season=${encodeURIComponent(season)}`,
+        { method: "GET", cache: "no-store" },
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as { rows?: EmbarqueRow[] };
+
+        if (Array.isArray(data.rows)) {
+          setRows(data.rows);
+        }
+      }
+    } catch {
+      // keep existing rows on error
+    } finally {
+      setIsLoadingSeason(false);
+    }
+  }
+
+  // ── Pagination ────────────────────────────────────────────────────────────
+  function goToPage(page: number) {
+    setCurrentPage(Math.max(1, Math.min(totalPages, page)));
+    setExpandedKey(null);
+  }
+
+  // ── Documents ─────────────────────────────────────────────────────────────
+  async function loadDocs(shipment: ShipmentSummary, force = false) {
+    const currentState = shipmentDocsByKey[shipment.groupKey];
+
+    if (
+      !force &&
+      (currentState?.status === "loading" || currentState?.status === "loaded")
+    ) {
+      return;
+    }
+
+    setShipmentDocsByKey((prev) => ({
+      ...prev,
+      [shipment.groupKey]: {
+        status: "loading",
+        items: prev[shipment.groupKey]?.items ?? [],
+        errorMessage: null,
+      },
+    }));
+
+    try {
+      const response = await fetch(
+        `/api/embarques/${encodeURIComponent(shipment.id)}/documentos?temporada=${encodeURIComponent(shipment.season)}`,
+        { method: "GET", cache: "no-store" },
+      );
+      const data = (await response.json()) as ShipmentDocumentsResponse;
+
+      if (!response.ok) {
+        throw new Error(data.message?.trim() || copy.docsLoadFailed);
+      }
+
+      setShipmentDocsByKey((prev) => ({
+        ...prev,
+        [shipment.groupKey]: {
+          status: "loaded",
+          items: Array.isArray(data.items) ? data.items : [],
+          errorMessage: null,
+        },
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : copy.docsLoadFailed;
+
+      setShipmentDocsByKey((prev) => ({
+        ...prev,
+        [shipment.groupKey]: {
+          status: "error",
+          items: prev[shipment.groupKey]?.items ?? [],
+          errorMessage: message,
+        },
+      }));
+    }
+  }
+
+  // ── Row toggle ────────────────────────────────────────────────────────────
+  function toggleRow(shipment: ShipmentSummary) {
+    if (expandedKey === shipment.groupKey) {
+      setExpandedKey(null);
+      return;
+    }
+
+    setExpandedKey(shipment.groupKey);
+    void loadDocs(shipment);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* ── Summary cards ─────────────────────────────────────────────────── */}
+      <div className="dashboard-enter grid gap-4 sm:grid-cols-3">
+        <SummaryCard
+          label={copy.inTransit}
+          count={inTransitCount}
+          subtitle={copy.inTransitSub}
+          accentClass="text-sky-600"
+        />
+        <SummaryCard
+          label={copy.arrivingSoon}
+          count={arrivingSoonCount}
+          subtitle={copy.arrivingSoonSub}
+          accentClass="text-amber-600"
+        />
+        <SummaryCard
+          label={copy.docsReady}
+          count={docsReadyCount}
+          subtitle={copy.docsReadySub}
+          accentClass="text-emerald-600"
+        />
+      </div>
+
+      {/* ── Búsqueda y filtros ─────────────────────────────────────────────── */}
+      <div
+        aria-busy={isLoadingSeason || isSearchSettling}
+        className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-white/10 bg-white/6 px-4 py-4 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:px-5 ${
+          isLoadingSeason || isSearchSettling ? "is-busy" : ""
+        }`}
+      >
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_220px_220px_auto_auto] xl:items-end">
+          <div className="relative xl:col-span-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50">
+              {isSearchSettling ? (
+                <SpinnerIcon className="h-4 w-4" />
+              ) : (
+                <SearchIcon />
+              )}
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder={copy.searchPlaceholder}
+              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 pl-9 pr-4 text-sm text-white placeholder:text-white/45 backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+            />
+          </div>
+
+          <div className="relative">
+            <select
+              value={searchField}
+              onChange={(e) => {
+                setSearchField(e.target.value as SearchField);
+                setCurrentPage(1);
+              }}
+              className="h-11 w-full appearance-none rounded-2xl border border-white/14 bg-white/10 pl-4 pr-9 text-sm font-medium text-white backdrop-blur-sm transition focus:border-white/30 focus:outline-none"
+            >
+              <option value="all" className="bg-[#1d1d1d] text-white">
+                {copy.searchByLabel}: {copy.searchByAll}
+              </option>
+              <option value="container" className="bg-[#1d1d1d] text-white">
+                {copy.searchByLabel}: {copy.searchByContainer}
+              </option>
+              <option value="shipment" className="bg-[#1d1d1d] text-white">
+                {copy.searchByLabel}: {copy.searchByShipment}
+              </option>
+              <option value="booking" className="bg-[#1d1d1d] text-white">
+                {copy.searchByLabel}: {copy.searchByBooking}
+              </option>
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
+              <ChevronDownIcon />
+            </span>
+          </div>
+
+          <div className="relative">
+            <select
+              value={selectedSeason}
+              onChange={(e) => void handleSeasonChange(e.target.value)}
+              disabled={isLoadingSeason}
+              className="h-11 appearance-none rounded-2xl border border-white/14 bg-white/10 pl-4 pr-9 text-sm font-medium text-white backdrop-blur-sm transition focus:border-white/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {initialSeasons.length > 0 ? (
+                initialSeasons.map((season) => (
+                  <option
+                    key={season.code}
+                    value={season.code}
+                    className="bg-[#1d1d1d] text-white"
+                  >
+                    {copy.seasonLabel}: {season.description}
+                  </option>
+                ))
+              ) : (
+                <option
+                  value={selectedSeason}
+                  className="bg-[#1d1d1d] text-white"
+                >
+                  {copy.seasonLabel}: {selectedSeason}
+                </option>
+              )}
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
+              <ChevronDownIcon />
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters || isLoadingSeason}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/14 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <CloseIcon />
+            {copy.clearFilters}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => downloadShipmentsAsCsv(filteredShipments, locale)}
+            disabled={
+              filteredShipments.length === 0 ||
+              isLoadingSeason ||
+              isSearchSettling
+            }
+            className={`dashboard-loading-button inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#059669] px-4 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 ${
+              isLoadingSeason || isSearchSettling ? "is-busy" : ""
+            }`}
+          >
+            {isLoadingSeason || isSearchSettling ? (
+              <SpinnerIcon className="h-4 w-4" />
+            ) : (
+              <DownloadIcon />
+            )}
+            {copy.exportExcel}
+          </button>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+              {copy.etdFromLabel}
+            </span>
+            <input
+              type="date"
+              value={etdFrom}
+              max={etdTo || undefined}
+              onChange={(e) => {
+                setEtdFrom(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+              style={{ colorScheme: "dark" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+              {copy.etdToLabel}
+            </span>
+            <input
+              type="date"
+              value={etdTo}
+              min={etdFrom || undefined}
+              onChange={(e) => {
+                setEtdTo(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+              style={{ colorScheme: "dark" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+              {copy.etaFromLabel}
+            </span>
+            <input
+              type="date"
+              value={etaFrom}
+              max={etaTo || undefined}
+              onChange={(e) => {
+                setEtaFrom(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+              style={{ colorScheme: "dark" }}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+              {copy.etaToLabel}
+            </span>
+            <input
+              type="date"
+              value={etaTo}
+              min={etaFrom || undefined}
+              onChange={(e) => {
+                setEtaTo(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+              style={{ colorScheme: "dark" }}
+            />
+          </label>
+        </div>
+
+        <p
+          aria-live="polite"
+          className={`mt-3 text-xs text-white/55 transition-opacity duration-200 ${
+            isSearchSettling ? "opacity-80" : "opacity-100"
+          }`}
+        >
+          {isLoadingSeason
+            ? copy.loadingNewSeason
+            : isSearchSettling
+              ? copy.searchingResults
+              : `${filteredShipments.length} ${copy.shipmentsShowing}${
+                  searchQuery.trim() ? ` · "${searchQuery.trim()}"` : ""
+                }`}
+        </p>
+      </div>
+
+      <div id="tracking" aria-hidden="true" className="relative -top-28" />
+
+      {/* ── Mapa de seguimiento ────────────────────────────────────────────── */}
+      {trackedItems.length > 0 ? (
+        <section
+          aria-busy={isSearchSettling}
+          className={`dashboard-enter dashboard-enter-delay-2 dashboard-live-region ${
+            isSearchSettling ? "is-busy" : ""
+          }`}
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-white">
+              {copy.trackingTitle}
+            </h2>
+            <span className="text-xs text-white/55">
+              {trackedItems.length}{" "}
+              {locale === "es"
+                ? "contenedor(es) con posición en tiempo real"
+                : "container(s) with live position"}
+            </span>
+          </div>
+          <div
+            className="overflow-hidden rounded-3xl shadow-[0_20px_48px_rgba(0,0,0,0.22)]"
+            style={{ height: "420px" }}
+          >
+            <TrackingMap
+              items={trackedItems}
+              locale={locale}
+              selectedShipmentId={mapSelectedKey}
+              onSelectShipment={handleMapSelection}
+            />
+          </div>
+
+          {/* Panel de info del embarque seleccionado en el mapa */}
+          {selectedMapShipment ? (
+            <div className="mt-3 rounded-[1.4rem] border border-white/14 bg-white/10 px-5 py-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={shipmentStatusBadge(selectedMapShipment.status)}
+                  >
+                    {statusLabel(selectedMapShipment.status, locale)}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {selectedMapShipment.container}
+                      {selectedMapShipment.bl !== "Sin BL" ? (
+                        <span className="ml-2 font-normal text-white/65">
+                          BL {selectedMapShipment.bl}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-white/60">
+                      {selectedMapShipment.vesselName} ·{" "}
+                      {selectedMapShipment.originPort} →{" "}
+                      {selectedMapShipment.destinationPort}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-4 text-xs text-white/70">
+                    <span>
+                      <span className="text-white/45">{copy.etdLabel}: </span>
+                      {formatDate(selectedMapShipment.etd, locale)}
+                    </span>
+                    <span>
+                      <span className="text-white/45">{copy.etaLabel}: </span>
+                      {formatDate(selectedMapShipment.eta, locale)}
+                    </span>
+                    {selectedMapTracking?.progressPercentage != null ? (
+                      <span>
+                        <span className="text-white/45">
+                          {copy.trackingProgress}:{" "}
+                        </span>
+                        {Math.round(selectedMapTracking.progressPercentage)}%
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const idx = filteredShipments.findIndex(
+                        (shipment) =>
+                          shipment.groupKey === selectedMapShipment.groupKey,
+                      );
+                      if (idx < 0) return;
+                      const page = Math.ceil((idx + 1) / PAGE_SIZE);
+                      pendingScrollToKeyRef.current =
+                        selectedMapShipment.groupKey;
+                      setCurrentPage(page);
+                      setExpandedKey(selectedMapShipment.groupKey);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
+                  >
+                    <ChevronDownIcon />
+                    {locale === "es" ? "Ver en tabla" : "Show in table"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMapSelectedKey(null)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/16"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <div id="documentos" aria-hidden="true" className="relative -top-28" />
+
+      {/* ── Tabla de embarques ─────────────────────────────────────────────── */}
+      <section
+        id="embarques"
+        aria-busy={isSearchSettling}
+        className={`dashboard-enter dashboard-enter-delay-3 dashboard-live-region ${
+          isSearchSettling ? "is-busy" : ""
+        }`}
+      >
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-semibold text-white">
+            {copy.misEmbarques}
+          </h2>
+          {totalPages > 1 ? (
+            <span className="text-sm text-white/60">
+              {copy.pageOf(safePage, totalPages)}
+            </span>
+          ) : null}
+        </div>
+
+        {filteredShipments.length === 0 ? (
+          <div className="rounded-3xl border border-black/8 bg-white p-10 text-center shadow-[0_20px_40px_rgba(13,13,13,0.10)]">
+            <p className="text-lg font-semibold text-cyl-ink">
+              {copy.noShipmentsTitle}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-cyl-ink/65">
+              {copy.noShipmentsDescription}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="table-shell">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-black/8">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55"
+                    >
+                      {copy.colStatus}
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55"
+                    >
+                      {copy.colContainer}
+                    </th>
+                    <th
+                      scope="col"
+                      className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55 sm:table-cell"
+                    >
+                      {copy.colRoute}
+                    </th>
+                    <th
+                      scope="col"
+                      className="hidden px-4 py-3 text-left text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55 md:table-cell"
+                    >
+                      {copy.colDates}
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-right text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55"
+                    >
+                      {copy.colActions}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedShipments.map((shipment) => {
+                    const isExpanded = expandedKey === shipment.groupKey;
+                    const docsState =
+                      shipmentDocsByKey[shipment.groupKey] ?? EMPTY_DOCS_STATE;
+                    const tracking = getTracking(shipment);
+
+                    const isMapSelected = mapSelectedKey === shipment.groupKey;
+                    return (
+                      <Fragment key={shipment.groupKey}>
+                        <tr
+                          id={`row-${shipment.groupKey}`}
+                          className={`border-b border-black/6 transition-colors last:border-0 ${
+                            isExpanded
+                              ? "bg-[#fffbf2]"
+                              : isMapSelected
+                                ? "bg-sky-50 outline-2 outline-sky-300"
+                                : "even:bg-black/[0.018] hover:bg-[#fffbee]"
+                          }`}
+                        >
+                          <td className="px-4 py-3.5 text-center align-middle">
+                            <p className="font-semibold text-cyl-ink">
+                              {shipment.id}
+                            </p>
+                            <div className="mt-1">
+                              <span
+                                className={shipmentStatusBadge(shipment.status)}
+                              >
+                                {statusLabel(shipment.status, locale)}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3.5 align-middle">
+                            <p className="font-semibold text-cyl-ink">
+                              {shipment.container}
+                            </p>
+                            <p className="mt-0.5 text-xs text-cyl-ink/55">
+                              {copy.bookingLabel} {shipment.booking}
+                            </p>
+                          </td>
+
+                          <td className="hidden px-4 py-3.5 align-middle sm:table-cell">
+                            <p className="font-medium text-cyl-ink">
+                              {shipment.vesselName}
+                            </p>
+                            <p className="mt-0.5 text-xs text-cyl-ink/55">
+                              {shipment.originPort} → {shipment.destinationPort}
+                            </p>
+                          </td>
+
+                          <td className="hidden px-4 py-3.5 align-middle md:table-cell">
+                            <p className="font-medium text-cyl-ink">
+                              {formatDate(shipment.etd, locale)}
+                            </p>
+                            <p className="mt-0.5 text-xs text-cyl-ink/55">
+                              ETA {formatDate(shipment.eta, locale)}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-3.5 text-right align-middle">
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(shipment)}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition ${
+                                isExpanded
+                                  ? "bg-[#111827] text-white hover:bg-[#1f2937]"
+                                  : "border border-black/10 bg-white text-cyl-ink hover:bg-slate-50"
+                              }`}
+                            >
+                              {isExpanded ? (
+                                <>
+                                  <ChevronUpIcon />
+                                  {copy.hideDetails}
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDownIcon />
+                                  {copy.viewDetails}
+                                </>
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+
+                        {isExpanded ? (
+                          <tr className="docs-expansion">
+                            <td colSpan={5} className="p-0">
+                              <ShipmentExpandedRow
+                                shipment={shipment}
+                                tracking={tracking}
+                                docsState={docsState}
+                                copy={copy}
+                                locale={locale}
+                                onLoadDocs={() => void loadDocs(shipment)}
+                                onReloadDocs={() =>
+                                  void loadDocs(shipment, true)
+                                }
+                                onClose={() => setExpandedKey(null)}
+                              />
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 ? (
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => goToPage(safePage - 1)}
+                  disabled={safePage <= 1}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeftIcon />
+                  {copy.prev}
+                </button>
+                <span className="min-w-28 text-center text-sm font-medium text-white/75">
+                  {copy.pageOf(safePage, totalPages)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goToPage(safePage + 1)}
+                  disabled={safePage >= totalPages}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {copy.next}
+                  <ChevronRightIcon />
+                </button>
+              </div>
+            ) : null}
+          </>
+        )}
+      </section>
+    </div>
   );
 }
