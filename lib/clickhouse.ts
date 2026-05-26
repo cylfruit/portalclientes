@@ -172,6 +172,51 @@ function toNumberOrNull(value: unknown) {
   return Number.isFinite(normalized) ? normalized : null;
 }
 
+function clampPercentage(value: number) {
+  return Math.min(100, Math.max(0, value));
+}
+
+function calculateTrackingProgressPercentage({
+  totalDistanceKm,
+  completedDistanceKm,
+  remainingDistanceKm,
+  fallbackPercentage,
+}: {
+  totalDistanceKm: number | null;
+  completedDistanceKm: number | null;
+  remainingDistanceKm: number | null;
+  fallbackPercentage: number | null;
+}) {
+  const safeCompletedDistance =
+    completedDistanceKm !== null ? Math.max(0, completedDistanceKm) : null;
+  const safeRemainingDistance =
+    remainingDistanceKm !== null ? Math.max(0, remainingDistanceKm) : null;
+
+  if (
+    totalDistanceKm !== null &&
+    totalDistanceKm > 0 &&
+    safeCompletedDistance !== null
+  ) {
+    return clampPercentage((safeCompletedDistance / totalDistanceKm) * 100);
+  }
+
+  if (
+    safeCompletedDistance !== null &&
+    safeRemainingDistance !== null &&
+    safeCompletedDistance + safeRemainingDistance > 0
+  ) {
+    return clampPercentage(
+      (safeCompletedDistance /
+        (safeCompletedDistance + safeRemainingDistance)) *
+        100,
+    );
+  }
+
+  return fallbackPercentage !== null
+    ? clampPercentage(fallbackPercentage)
+    : null;
+}
+
 function toBoolean(value: unknown) {
   if (typeof value === "boolean") {
     return value;
@@ -426,6 +471,15 @@ function normalizeTrackingSnapshot(
   const containerNumber = toStringOrNull(row.container_number);
   const currentLatitude = toNumberOrNull(row.location_lat);
   const currentLongitude = toNumberOrNull(row.location_lng);
+  const totalDistanceKm = toNumberOrNull(row.total_distance_km);
+  const completedDistanceKm = toNumberOrNull(row.completed_distance_km);
+  const remainingDistanceKm = toNumberOrNull(row.remaining_distance_km);
+  const progressPercentage = calculateTrackingProgressPercentage({
+    totalDistanceKm,
+    completedDistanceKm,
+    remainingDistanceKm,
+    fallbackPercentage: toNumberOrNull(row.progress_percentage),
+  });
 
   if (
     !containerNumber ||
@@ -441,7 +495,7 @@ function normalizeTrackingSnapshot(
     statusLabel: toStringOrNull(row.container_status) ?? "En transito",
     trackedAt: toStringOrNull(row.tracked_at),
     locationSource: toStringOrNull(row.location_source) ?? "tracking",
-    progressPercentage: toNumberOrNull(row.progress_percentage),
+    progressPercentage,
     currentLatitude,
     currentLongitude,
     originName: toStringOrNull(row.origin_name) ?? "Origen no informado",
@@ -465,9 +519,9 @@ function normalizeTrackingSnapshot(
     lastEventStatus: toStringOrNull(row.last_event_status),
     lastEventDescription: toStringOrNull(row.last_event_description),
     lastEventDate: toStringOrNull(row.last_event_date),
-    totalDistanceKm: toNumberOrNull(row.total_distance_km),
-    completedDistanceKm: toNumberOrNull(row.completed_distance_km),
-    remainingDistanceKm: toNumberOrNull(row.remaining_distance_km),
+    totalDistanceKm,
+    completedDistanceKm,
+    remainingDistanceKm,
     routePoints: buildTrackingRoutePoints(row),
   };
 }

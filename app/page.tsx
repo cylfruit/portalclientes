@@ -136,8 +136,8 @@ export default async function Home() {
   const heading = locale === "en" ? "Shipments" : "Embarques";
   const description =
     locale === "en"
-      ? "Operational summary by destination and voyage status so each client can review shipments, documents, and key dates from a single screen."
-      : "Resumen operativo por destino y estado del viaje para que el cliente revise sus embarques, documentos y fechas clave desde una sola vista.";
+      ? "Review your shipments, track container status, access documents, and check key voyage dates from a single portal."
+      : "Revisa tus embarques, sigue el estado de tus contenedores, accede a documentos y consulta fechas clave del viaje desde un solo portal.";
 
   return (
     <PortalShell activePath="/" heading={heading} description={description}>

@@ -81,8 +81,8 @@ const dashboardCopy = {
   es: {
     inTransit: "EN TRÁNSITO",
     inTransitSub: "Contenedores en ruta",
-    arrivingSoon: "PRÓXIMOS ARRIBOS",
-    arrivingSoonSub: "Próximos 7 días",
+    arrivingSoon: "POR ZARPAR",
+    arrivingSoonSub: "Embarques pendientes de zarpe",
     docsReady: "ARRIBADOS",
     docsReadySub: "Embarques ya arribados del cliente",
     searchPlaceholder: "Buscar por embarque, booking o contenedor...",
@@ -153,8 +153,8 @@ const dashboardCopy = {
   en: {
     inTransit: "IN TRANSIT",
     inTransitSub: "Containers en route",
-    arrivingSoon: "ARRIVING SOON",
-    arrivingSoonSub: "Next 7 days",
+    arrivingSoon: "TO DEPART",
+    arrivingSoonSub: "Shipments pending departure",
     docsReady: "ARRIVED",
     docsReadySub: "Client shipments already arrived",
     searchPlaceholder: "Search by shipment, booking or container...",
@@ -325,6 +325,23 @@ function formatProgress(
 ) {
   if (value == null) return dashboardCopy[locale].noData;
   return `${getDecimalFormatter(locale).format(value)}%`;
+}
+
+function normalizeTrackingProgress(
+  value: number | null | undefined,
+  hasArrived: boolean,
+) {
+  if (value == null) {
+    return null;
+  }
+
+  const normalized = Math.min(100, Math.max(0, value));
+
+  if (!hasArrived && normalized >= 100) {
+    return 99;
+  }
+
+  return normalized;
 }
 
 function formatFileSize(
@@ -869,6 +886,10 @@ function TrackingTimeline({
         ? "ETA estimado"
         : "Estimated ETA"
     : null;
+  const displayProgress = normalizeTrackingProgress(
+    tracking?.progressPercentage,
+    hasAta,
+  );
 
   // Last known tracking event for In Transit step
   const inTransitDate = tracking?.lastEventDate
@@ -978,17 +999,17 @@ function TrackingTimeline({
         ))}
       </div>
 
-      {tracking && tracking.progressPercentage !== null ? (
+      {displayProgress !== null ? (
         <div className="mt-5">
           <div className="mb-1 flex items-center justify-between text-xs text-cyl-ink/55">
             <span>{copy.trackingProgress}</span>
-            <span>{formatProgress(tracking.progressPercentage, locale)}</span>
+            <span>{formatProgress(displayProgress, locale)}</span>
           </div>
           <div className="h-1.5 rounded-full bg-slate-200">
             <div
               className="h-1.5 rounded-full bg-sky-500"
               style={{
-                width: `${Math.min(100, Math.max(0, tracking.progressPercentage))}%`,
+                width: `${displayProgress}%`,
               }}
             />
           </div>
@@ -1223,19 +1244,13 @@ export function ClientHomeDashboard({
 
   // ── Summary counts ────────────────────────────────────────────────────────
   const { inTransitCount, arrivingSoonCount, docsReadyCount } = useMemo(() => {
-    const nowMs = Date.now();
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-
     return {
       inTransitCount: filteredShipments.filter(
         (shipment) => shipment.status === "En transito",
       ).length,
-      arrivingSoonCount: filteredShipments.filter((shipment) => {
-        if (shipment.status === "Arribado") return false;
-        if (!shipment.eta) return false;
-        const eta = new Date(`${shipment.eta}T00:00:00`).getTime();
-        return !isNaN(eta) && eta >= nowMs && eta <= nowMs + sevenDaysMs;
-      }).length,
+      arrivingSoonCount: filteredShipments.filter(
+        (shipment) => shipment.status === "Programado",
+      ).length,
       docsReadyCount: filteredShipments.filter(
         (shipment) => shipment.status === "Arribado",
       ).length,
@@ -1461,16 +1476,16 @@ export function ClientHomeDashboard({
       {/* ── Summary cards ─────────────────────────────────────────────────── */}
       <div className="dashboard-enter grid gap-4 sm:grid-cols-3">
         <SummaryCard
-          label={copy.inTransit}
-          count={inTransitCount}
-          subtitle={copy.inTransitSub}
-          accentClass="text-sky-600"
-        />
-        <SummaryCard
           label={copy.arrivingSoon}
           count={arrivingSoonCount}
           subtitle={copy.arrivingSoonSub}
           accentClass="text-amber-600"
+        />
+        <SummaryCard
+          label={copy.inTransit}
+          count={inTransitCount}
+          subtitle={copy.inTransitSub}
+          accentClass="text-sky-600"
         />
         <SummaryCard
           label={copy.docsReady}
@@ -1719,77 +1734,94 @@ export function ClientHomeDashboard({
           {/* Panel de info del embarque seleccionado en el mapa */}
           {selectedMapShipment ? (
             <div className="mt-3 rounded-[1.4rem] border border-white/14 bg-white/10 px-5 py-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={shipmentStatusBadge(selectedMapShipment.status)}
-                  >
-                    {statusLabel(selectedMapShipment.status, locale)}
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      {selectedMapShipment.container}
-                      {selectedMapShipment.bl !== "Sin BL" ? (
-                        <span className="ml-2 font-normal text-white/65">
-                          BL {selectedMapShipment.bl}
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="mt-0.5 text-xs text-white/60">
-                      {selectedMapShipment.vesselName} ·{" "}
-                      {selectedMapShipment.originPort} →{" "}
-                      {selectedMapShipment.destinationPort}
-                    </p>
-                  </div>
-                </div>
+              {(() => {
+                const selectedMapProgress = normalizeTrackingProgress(
+                  selectedMapTracking?.progressPercentage,
+                  selectedMapShipment.status === "Arribado",
+                );
 
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-4 text-xs text-white/70">
-                    <span>
-                      <span className="text-white/45">{copy.etdLabel}: </span>
-                      {formatDate(selectedMapShipment.etd, locale)}
-                    </span>
-                    <span>
-                      <span className="text-white/45">{copy.etaLabel}: </span>
-                      {formatDate(selectedMapShipment.eta, locale)}
-                    </span>
-                    {selectedMapTracking?.progressPercentage != null ? (
-                      <span>
-                        <span className="text-white/45">
-                          {copy.trackingProgress}:{" "}
-                        </span>
-                        {Math.round(selectedMapTracking.progressPercentage)}%
+                return (
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={shipmentStatusBadge(
+                          selectedMapShipment.status,
+                        )}
+                      >
+                        {statusLabel(selectedMapShipment.status, locale)}
                       </span>
-                    ) : null}
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {selectedMapShipment.container}
+                          {selectedMapShipment.bl !== "Sin BL" ? (
+                            <span className="ml-2 font-normal text-white/65">
+                              BL {selectedMapShipment.bl}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 text-xs text-white/60">
+                          {selectedMapShipment.vesselName} ·{" "}
+                          {selectedMapShipment.originPort} →{" "}
+                          {selectedMapShipment.destinationPort}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-4 text-xs text-white/70">
+                        <span>
+                          <span className="text-white/45">
+                            {copy.etdLabel}:{" "}
+                          </span>
+                          {formatDate(selectedMapShipment.etd, locale)}
+                        </span>
+                        <span>
+                          <span className="text-white/45">
+                            {copy.etaLabel}:{" "}
+                          </span>
+                          {formatDate(selectedMapShipment.eta, locale)}
+                        </span>
+                        {selectedMapProgress !== null ? (
+                          <span>
+                            <span className="text-white/45">
+                              {copy.trackingProgress}:{" "}
+                            </span>
+                            {Math.round(selectedMapProgress)}%
+                          </span>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idx = filteredShipments.findIndex(
+                            (shipment) =>
+                              shipment.groupKey ===
+                              selectedMapShipment.groupKey,
+                          );
+                          if (idx < 0) return;
+                          const page = Math.ceil((idx + 1) / PAGE_SIZE);
+                          void loadDocs(selectedMapShipment);
+                          pendingScrollToKeyRef.current =
+                            selectedMapShipment.groupKey;
+                          setCurrentPage(page);
+                          setExpandedKey(selectedMapShipment.groupKey);
+                        }}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
+                      >
+                        <ChevronDownIcon />
+                        {locale === "es" ? "Ver en tabla" : "Show in table"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMapSelectedKey(null)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/16"
+                      >
+                        <CloseIcon />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idx = filteredShipments.findIndex(
-                        (shipment) =>
-                          shipment.groupKey === selectedMapShipment.groupKey,
-                      );
-                      if (idx < 0) return;
-                      const page = Math.ceil((idx + 1) / PAGE_SIZE);
-                      pendingScrollToKeyRef.current =
-                        selectedMapShipment.groupKey;
-                      setCurrentPage(page);
-                      setExpandedKey(selectedMapShipment.groupKey);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
-                  >
-                    <ChevronDownIcon />
-                    {locale === "es" ? "Ver en tabla" : "Show in table"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMapSelectedKey(null)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/16"
-                  >
-                    <CloseIcon />
-                  </button>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           ) : null}
         </section>

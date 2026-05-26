@@ -24,27 +24,8 @@ const shellCopy = {
     logout: "Salir",
     footerDescription:
       "Embarques, documentos y trazabilidad de fruta en una interfaz alineada visualmente con el portal principal de C&L.",
-    chips: ["Embarques", "Pallets", "Documentos", "Accesos"],
+    chips: ["Embarques", "Documentos", "Accesos"],
     navigation: [
-      { href: "/", label: "Inicio", key: "inicio", icon: <HomeIcon /> },
-      {
-        href: "/#embarques",
-        label: "Embarques",
-        key: "embarques",
-        icon: <ShipIcon />,
-      },
-      {
-        href: "/#tracking",
-        label: "Tracking",
-        key: "tracking",
-        icon: <PinIcon />,
-      },
-      {
-        href: "/#documentos",
-        label: "Documentos",
-        key: "documentos",
-        icon: <DocumentIcon />,
-      },
       {
         href: "/usuarios",
         label: "Usuarios",
@@ -61,27 +42,8 @@ const shellCopy = {
     logout: "Sign out",
     footerDescription:
       "Shipments, documents, and fruit traceability in an interface visually aligned with the main C&L portal.",
-    chips: ["Shipments", "Pallets", "Documents", "Access"],
+    chips: ["Shipments", "Documents", "Access"],
     navigation: [
-      { href: "/", label: "Home", key: "inicio", icon: <HomeIcon /> },
-      {
-        href: "/#embarques",
-        label: "Shipments",
-        key: "embarques",
-        icon: <ShipIcon />,
-      },
-      {
-        href: "/#tracking",
-        label: "Tracking",
-        key: "tracking",
-        icon: <PinIcon />,
-      },
-      {
-        href: "/#documentos",
-        label: "Documents",
-        key: "documentos",
-        icon: <DocumentIcon />,
-      },
       {
         href: "/usuarios",
         label: "Users",
@@ -109,7 +71,7 @@ export async function PortalShell({
   const visibleNavigation = canManageUsers
     ? copy.navigation
     : copy.navigation.filter((item) => item.key !== "usuarios");
-  const activeKey = activePath === "/usuarios" ? "usuarios" : "embarques";
+  const activeKey = activePath === "/usuarios" ? "usuarios" : null;
 
   return (
     <div className="min-h-screen bg-[#1d1d1d] text-cyl-paper">
@@ -143,30 +105,32 @@ export async function PortalShell({
               </div>
             </Link>
 
-            <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
-              {visibleNavigation.map((item) => {
-                const isActive = item.key === activeKey;
+            {visibleNavigation.length > 0 ? (
+              <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
+                {visibleNavigation.map((item) => {
+                  const isActive = item.key === activeKey;
 
-                return (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
-                        : "text-white/74 hover:bg-white/6 hover:text-white"
-                    }`}
-                  >
-                    <span
-                      className={`${isActive ? "text-cyl-gold" : "text-white/55"}`}
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        isActive
+                          ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
+                          : "text-white/74 hover:bg-white/6 hover:text-white"
+                      }`}
                     >
-                      {item.icon}
-                    </span>
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+                      <span
+                        className={`${isActive ? "text-cyl-gold" : "text-white/55"}`}
+                      >
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            ) : null}
 
             <div className="ml-auto flex items-center gap-2 sm:gap-3">
               <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white md:flex">
@@ -283,69 +247,6 @@ export async function PortalShell({
         </div>
       </footer>
     </div>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className="h-4 w-4"
-    >
-      <path d="m3 9 7-6 7 6" />
-      <path d="M5 8.5V17h10V8.5" />
-    </svg>
-  );
-}
-
-function ShipIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className="h-4 w-4"
-    >
-      <path d="M4 13h12l-1.7 3H5.7L4 13Z" />
-      <path d="M7 13V7h6v6" />
-      <path d="M10 4v3" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className="h-4 w-4"
-    >
-      <path d="M10 17s4-4.4 4-8a4 4 0 1 0-8 0c0 3.6 4 8 4 8Z" />
-      <circle cx="10" cy="9" r="1.7" />
-    </svg>
-  );
-}
-
-function DocumentIcon() {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      className="h-4 w-4"
-    >
-      <path d="M6 3h5l3 3v11H6z" />
-      <path d="M11 3v3h3" />
-      <path d="M8 10h4" />
-      <path d="M8 13h4" />
-    </svg>
   );
 }
 

@@ -457,7 +457,7 @@ export const clientUsers: PortalClientUser[] = [
     recipientName: "RBC Fresh Europe",
     groupCode: "EU-NORTH",
     canViewAll: false,
-    modules: ["Embarques", "Pallets", "Documentos", "Usuarios"],
+    modules: ["Embarques", "Documentos", "Usuarios"],
     status: "Activo",
     lastAccess: "18 may 2026 · 08:42",
     twoFactor: true,
@@ -475,7 +475,7 @@ export const clientUsers: PortalClientUser[] = [
     recipientName: "RBC Fresh Europe",
     groupCode: "EU-NORTH",
     canViewAll: false,
-    modules: ["Embarques", "Pallets", "Documentos"],
+    modules: ["Embarques", "Documentos"],
     status: "Activo",
     lastAccess: "17 may 2026 · 19:10",
     twoFactor: true,
@@ -493,7 +493,7 @@ export const clientUsers: PortalClientUser[] = [
     recipientName: "Sunfield Produce",
     groupCode: "USA-WEST",
     canViewAll: false,
-    modules: ["Embarques", "Pallets", "Documentos", "Alertas"],
+    modules: ["Embarques", "Documentos", "Alertas"],
     status: "Activo",
     lastAccess: "18 may 2026 · 06:55",
     twoFactor: false,
@@ -511,7 +511,7 @@ export const clientUsers: PortalClientUser[] = [
     recipientName: "Gulf Orchard Trading",
     groupCode: "MEA",
     canViewAll: false,
-    modules: ["Embarques", "Pallets", "Documentos"],
+    modules: ["Embarques", "Documentos"],
     status: "Pendiente",
     lastAccess: "Invitacion enviada",
     twoFactor: false,
@@ -529,7 +529,7 @@ export const clientUsers: PortalClientUser[] = [
     recipientName: "Vista transversal",
     groupCode: "GLOBAL",
     canViewAll: true,
-    modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
+    modules: ["Embarques", "Documentos", "Usuarios", "Alertas"],
     status: "Bloqueado",
     lastAccess: "14 may 2026 · 12:21",
     twoFactor: true,
@@ -756,35 +756,35 @@ export const portalUserRoleBlueprint = [
     scope: "Solo sus datos",
     description:
       "Consulta sus embarques, documentos y trazabilidad solo para el CodRecibidor asignado, sin heredar acceso por grupo.",
-    modules: ["Embarques", "Pallets", "Documentos"],
+    modules: ["Embarques", "Documentos"],
   },
   {
     name: "Administrador cliente",
     scope: "Grupo completo",
     description:
       "Crea o desactiva usuarios del mismo recibidor y ve todos los documentos asociados a sus embarques.",
-    modules: ["Embarques", "Pallets", "Documentos", "Usuarios"],
+    modules: ["Embarques", "Documentos", "Usuarios"],
   },
   {
     name: "Supervisor de calidad",
     scope: "Solo lectura",
     description:
       "Consulta detalle por pallet, termografos, certificados y trazabilidad sin editar accesos.",
-    modules: ["Embarques", "Pallets", "Documentos"],
+    modules: ["Embarques", "Documentos"],
   },
   {
     name: "Administrador interno",
     scope: "Operacion transversal",
     description:
       "Perfil interno para soporte comercial, onboarding de recibidores y gestion de incidencias.",
-    modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
+    modules: ["Embarques", "Documentos", "Usuarios", "Alertas"],
   },
   {
     name: "Superusuario",
     scope: "Vista global",
     description:
       "Puede ver todos los embarques, administrar usuarios, cambiar scopes y anular restricciones por recibidor.",
-    modules: ["Embarques", "Pallets", "Documentos", "Usuarios", "Alertas"],
+    modules: ["Embarques", "Documentos", "Usuarios", "Alertas"],
   },
 ];
 
