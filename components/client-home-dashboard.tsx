@@ -999,7 +999,7 @@ function TrackingTimeline({
         ))}
       </div>
 
-      {displayProgress !== null ? (
+      {tracking && displayProgress !== null ? (
         <div className="mt-5">
           <div className="mb-1 flex items-center justify-between text-xs text-cyl-ink/55">
             <span>{copy.trackingProgress}</span>
