@@ -18,12 +18,17 @@ const UNAVAILABLE_DOCUMENT_TYPES_TO_EXPOSE = [
   "DUS_LEGALIZADA",
   "DUS_LEGALIZADA_ROSSI",
 ] as const;
+const HIDDEN_DOCUMENT_STATUSES = new Set(["ELIMINADO", "DELETED"]);
 
 type RouteContext = {
   params: Promise<{
     shipmentId: string;
   }>;
 };
+
+function shouldShowDocument(document: { estado: string }) {
+  return !HIDDEN_DOCUMENT_STATUSES.has(document.estado.trim().toUpperCase());
+}
 
 function buildProxyDocumentUrl(input: {
   requestedShipmentId: string;
@@ -139,7 +144,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       type,
     });
 
-    const items = payload.data!.map((document) => {
+    const visibleDocuments = payload.data!.filter(shouldShowDocument);
+    const unavailableFiles = payload.resumen?.archivos_no_disponibles ?? 0;
+
+    const items = visibleDocuments.map((document) => {
       const documentId = String(document.documento_id);
       const documentShipmentId = String(document.embarque_id);
 
@@ -176,7 +184,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     let unavailableTypes: string[] = [];
 
     if (type) {
-      if (items.length === 0 && (payload.resumen?.total_documentos ?? 0) > 0) {
+      if (
+        items.length === 0 &&
+        (payload.resumen?.total_documentos ?? 0) > 0 &&
+        payload.data!.length === 0
+      ) {
         unavailableTypes = [type.trim().toUpperCase()];
       }
     } else {
@@ -212,9 +224,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       season,
       type,
       summary: {
-        totalDocuments: payload.resumen?.total_documentos ?? items.length,
-        availableFiles: payload.resumen?.archivos_disponibles ?? items.length,
-        unavailableFiles: payload.resumen?.archivos_no_disponibles ?? 0,
+        totalDocuments: items.length + unavailableFiles,
+        availableFiles: items.length,
+        unavailableFiles,
       },
       unavailableTypes,
       total: items.length,
