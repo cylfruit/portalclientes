@@ -18,6 +18,49 @@ type RouteContext = {
   }>;
 };
 
+function buildProxyDocumentUrl(input: {
+  requestedShipmentId: string;
+  documentShipmentId: string;
+  documentId: string;
+  season: string;
+  disposition: "inline" | "attachment";
+  upstreamUrl: string | null;
+}) {
+  const fallbackShipmentId =
+    input.documentShipmentId.trim() || input.requestedShipmentId.trim();
+  const fallbackUrl = `/api/embarques/${encodeURIComponent(fallbackShipmentId)}/documentos/${encodeURIComponent(input.documentId)}?temporada=${encodeURIComponent(input.season)}&disposition=${input.disposition}`;
+  const normalizedUpstreamUrl = input.upstreamUrl?.trim();
+
+  if (!normalizedUpstreamUrl) {
+    return fallbackUrl;
+  }
+
+  try {
+    const parsedUrl = new URL(
+      normalizedUpstreamUrl,
+      "http://documents-api.local",
+    );
+    const pathnameMatch = parsedUrl.pathname.match(
+      /^\/api\/documentos\/embarque\/([^/]+)\/archivos\/([^/]+)$/,
+    );
+
+    if (!pathnameMatch) {
+      return fallbackUrl;
+    }
+
+    const upstreamShipmentId = decodeURIComponent(pathnameMatch[1]).trim();
+    const upstreamDocumentId = decodeURIComponent(pathnameMatch[2]).trim();
+    const searchParams = new URLSearchParams(parsedUrl.search);
+
+    searchParams.set("temporada", input.season);
+    searchParams.set("disposition", input.disposition);
+
+    return `/api/embarques/${encodeURIComponent(upstreamShipmentId || fallbackShipmentId)}/documentos/${encodeURIComponent(upstreamDocumentId || input.documentId)}?${searchParams.toString()}`;
+  } catch {
+    return fallbackUrl;
+  }
+}
+
 function handleShipmentDocumentsApiError(error: unknown) {
   if (error instanceof ShipmentDocumentsApiError) {
     return NextResponse.json(
@@ -88,26 +131,51 @@ export async function GET(request: NextRequest, context: RouteContext) {
       season,
       type,
     });
-    const items = payload.data!.map((document) => ({
-      id: String(document.documento_id),
-      shipmentId: String(document.embarque_id),
-      season: document.temporada,
-      type: document.tipo,
-      status: document.estado,
-      originalName: document.original_name,
-      mimeType: document.mime_type,
-      size: document.size,
-      createdAt: document.created_at,
-      updatedAt: document.updated_at,
-      viewUrl: `/api/embarques/${encodeURIComponent(shipmentId)}/documentos/${encodeURIComponent(String(document.documento_id))}?temporada=${encodeURIComponent(season)}&disposition=inline`,
-      downloadUrl: `/api/embarques/${encodeURIComponent(shipmentId)}/documentos/${encodeURIComponent(String(document.documento_id))}?temporada=${encodeURIComponent(season)}&disposition=attachment`,
-    }));
+
+    const items = payload.data!.map((document) => {
+      const documentId = String(document.documento_id);
+      const documentShipmentId = String(document.embarque_id);
+
+      return {
+        id: documentId,
+        shipmentId: documentShipmentId,
+        season: document.temporada,
+        type: document.tipo,
+        status: document.estado,
+        originalName: document.original_name,
+        mimeType: document.mime_type,
+        size: document.size,
+        createdAt: document.created_at,
+        updatedAt: document.updated_at,
+        viewUrl: buildProxyDocumentUrl({
+          requestedShipmentId: shipmentId,
+          documentShipmentId,
+          documentId,
+          season,
+          disposition: "inline",
+          upstreamUrl: document.view_url,
+        }),
+        downloadUrl: buildProxyDocumentUrl({
+          requestedShipmentId: shipmentId,
+          documentShipmentId,
+          documentId,
+          season,
+          disposition: "attachment",
+          upstreamUrl: document.download_url,
+        }),
+      };
+    });
 
     return NextResponse.json({
       success: true,
       shipmentId,
       season,
       type,
+      summary: {
+        totalDocuments: payload.resumen?.total_documentos ?? items.length,
+        availableFiles: payload.resumen?.archivos_disponibles ?? items.length,
+        unavailableFiles: payload.resumen?.archivos_no_disponibles ?? 0,
+      },
       total: items.length,
       items,
     });

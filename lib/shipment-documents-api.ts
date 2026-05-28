@@ -9,6 +9,11 @@ type DocumentsApiLoginResponse = {
 type DocumentsApiListResponse = {
   success?: boolean;
   message?: string;
+  resumen?: {
+    total_documentos?: number;
+    archivos_disponibles?: number;
+    archivos_no_disponibles?: number;
+  } | null;
   data?: DocumentsApiShipmentDocument[];
 } & Record<string, unknown>;
 

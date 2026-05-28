@@ -48,6 +48,11 @@ type ShipmentDocumentItem = {
 };
 
 type ShipmentDocumentsResponse = {
+  summary?: {
+    totalDocuments?: number;
+    availableFiles?: number;
+    unavailableFiles?: number;
+  };
   items?: ShipmentDocumentItem[];
   message?: string;
 };
@@ -55,12 +60,22 @@ type ShipmentDocumentsResponse = {
 type ShipmentDocumentsLoadState = {
   status: "idle" | "loading" | "loaded" | "error";
   items: ShipmentDocumentItem[];
+  summary: {
+    totalDocuments: number;
+    availableFiles: number;
+    unavailableFiles: number;
+  };
   errorMessage: string | null;
 };
 
 const EMPTY_DOCS_STATE: ShipmentDocumentsLoadState = {
   status: "idle",
   items: [],
+  summary: {
+    totalDocuments: 0,
+    availableFiles: 0,
+    unavailableFiles: 0,
+  },
   errorMessage: null,
 };
 
@@ -121,6 +136,8 @@ const dashboardCopy = {
     loadingDocs: "Cargando documentos...",
     docsLoadFailed: "No fue posible cargar los documentos de este embarque.",
     noDocsAvailable: "No hay archivos disponibles para este embarque.",
+    docsRegisteredUnavailable:
+      "Hay documentos registrados, pero el archivo no esta disponible para ver o descargar.",
     openDocument: "Ver archivo",
     download: "Descargar PDF",
     retry: "Reintentar",
@@ -193,6 +210,8 @@ const dashboardCopy = {
     loadingDocs: "Loading documents...",
     docsLoadFailed: "Could not load the shipment documents.",
     noDocsAvailable: "No files available for this shipment.",
+    docsRegisteredUnavailable:
+      "There are registered documents, but the file is not available for viewing or download.",
     openDocument: "View file",
     download: "Download PDF",
     retry: "Retry",
@@ -759,7 +778,9 @@ function ShipmentDocumentsGrid({
   if (state.status === "loaded" && state.items.length === 0) {
     return (
       <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm text-cyl-ink/68">
-        {copy.noDocsAvailable}
+        {state.summary.unavailableFiles > 0
+          ? copy.docsRegisteredUnavailable
+          : copy.noDocsAvailable}
       </div>
     );
   }
@@ -775,6 +796,12 @@ function ShipmentDocumentsGrid({
       {state.status === "error" && state.errorMessage ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
           {state.errorMessage}
+        </div>
+      ) : null}
+
+      {state.summary.unavailableFiles > 0 ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
+          {copy.docsRegisteredUnavailable}
         </div>
       ) : null}
 
@@ -1420,6 +1447,7 @@ export function ClientHomeDashboard({
       [shipment.groupKey]: {
         status: "loading",
         items: prev[shipment.groupKey]?.items ?? [],
+        summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
         errorMessage: null,
       },
     }));
@@ -1440,6 +1468,11 @@ export function ClientHomeDashboard({
         [shipment.groupKey]: {
           status: "loaded",
           items: Array.isArray(data.items) ? data.items : [],
+          summary: {
+            totalDocuments: data.summary?.totalDocuments ?? 0,
+            availableFiles: data.summary?.availableFiles ?? 0,
+            unavailableFiles: data.summary?.unavailableFiles ?? 0,
+          },
           errorMessage: null,
         },
       }));
@@ -1454,6 +1487,7 @@ export function ClientHomeDashboard({
         [shipment.groupKey]: {
           status: "error",
           items: prev[shipment.groupKey]?.items ?? [],
+          summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
           errorMessage: message,
         },
       }));
