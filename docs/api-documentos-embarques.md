@@ -7,7 +7,7 @@ Este documento explica como el frontend debe consumir las rutas seguras de docum
 Estas rutas permiten:
 
 - listar archivos disponibles de un embarque por temporada
-- filtrar por tipo de documento, por ejemplo `FULL_SET`, `PACKING_LIST`, `ISF`
+- filtrar por tipo de documento, por ejemplo `FULL_SET`, `DUS`, `PACKING_LIST`, `ISF`
 - abrir un archivo en vista previa
 - descargar un archivo
 
@@ -55,6 +55,7 @@ Ejemplos:
 ```http
 GET /api/documentos/embarque/1755/archivos?temporada=T7
 GET /api/documentos/embarque/1755/archivos?temporada=T7&tipo=FULL_SET
+GET /api/documentos/embarque/1755/archivos?temporada=T7&tipo=DUS
 GET /api/documentos/embarque/1755/archivos?temporada=T7&tipo=PACKING_LIST
 ```
 
@@ -102,6 +103,8 @@ La forma correcta es:
 3. renderizar solo los documentos que vienen en `data`
 4. usar `view_url` para preview con `fetch + blob`
 5. usar `download_url` para descarga con `fetch + blob`
+
+Esto aplica igual para `FULL_SET`, `DUS`, `PACKING_LIST` y cualquier otro tipo que venga en `data`.
 
 ## Como interpretar la respuesta del listado
 
@@ -324,6 +327,33 @@ await descargarDocumento(
 );
 ```
 
+## Ejemplo de uso completo para DUS
+
+```ts
+const respuestaDus = await listarDocumentosEmbarque({
+  embarqueId: 1755,
+  temporada: "T7",
+  tipo: "DUS",
+  token,
+});
+
+if (respuestaDus.data.length > 0) {
+  const dus = respuestaDus.data[0];
+
+  // Preview
+  await abrirDocumentoEnNuevaPestana(dus.view_url, token);
+
+  // Descarga
+  // await descargarDocumento(dus.download_url, token, dus.original_name);
+} else if (respuestaDus.resumen.archivos_no_disponibles > 0) {
+  console.warn(
+    "El DUS existe, pero no hay archivo disponible para abrir o descargar",
+  );
+} else {
+  console.warn("No existe DUS para este embarque y temporada");
+}
+```
+
 ## Ejemplo de uso completo para FULL_SET
 
 ```ts
@@ -371,6 +401,9 @@ if (respuesta.data.length > 0) {
 ## Tipos de documento frecuentes
 
 - `FULL_SET`
+- `DUS`
+- `DUS_LEGALIZADA`
+- `DUS_LEGALIZADA_ROSSI`
 - `PACKING_LIST`
 - `FACTURA_COMERCIAL`
 - `FACTURA_PROFORMA`
@@ -379,16 +412,37 @@ if (respuesta.data.length > 0) {
 - `ISF`
 - `BL_AWB`
 - `COURIER_COMPROBANTE`
+- `TRACKING_DOCUMENT`
+
+## Nota para DUS
+
+Si la vista del frontend necesita especificamente DUS, la consulta es exactamente la misma que para `FULL_SET`, cambiando solo el filtro:
+
+```http
+GET /api/documentos/embarque/:id/archivos?temporada=T7&tipo=DUS
+```
+
+Tambien existen variantes como:
+
 - `DUS`
 - `DUS_LEGALIZADA`
-- `TRACKING_DOCUMENT`
+- `DUS_LEGALIZADA_ROSSI`
+
+En todos esos casos, el patron de frontend es el mismo:
+
+1. listar con `tipo=...`
+2. tomar `view_url` o `download_url`
+3. pedir el archivo con bearer token
+4. abrirlo o descargarlo como `blob`
+
+El DUS igual se debe mostrar segun la temporada real del embarque. La temporada es obligatoria y no se puede inferir solo por el numero de embarque. Puede existir, por ejemplo, un embarque `1` en `T7` y otro embarque `1` en `T8`, con documentos distintos. El frontend siempre debe consultar y abrir documentos usando la temporada real del embarque seleccionado.
 
 ## Resumen corto para implementacion
 
 Si el frontend necesita mostrar documentos por embarque:
 
 1. pedir JWT con `POST /api/auth/login`
-2. llamar `GET /api/documentos/embarque/:id/archivos?temporada=T7&tipo=FULL_SET`
+2. llamar `GET /api/documentos/embarque/:id/archivos?temporada=T7&tipo=FULL_SET` o `tipo=DUS`
 3. tomar el primer item de `data`
 4. usar `view_url` o `download_url` con `fetch` autenticado
 5. abrir o descargar usando `blob`

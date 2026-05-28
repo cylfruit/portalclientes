@@ -53,6 +53,7 @@ type ShipmentDocumentsResponse = {
     availableFiles?: number;
     unavailableFiles?: number;
   };
+  unavailableTypes?: string[];
   items?: ShipmentDocumentItem[];
   message?: string;
 };
@@ -60,6 +61,7 @@ type ShipmentDocumentsResponse = {
 type ShipmentDocumentsLoadState = {
   status: "idle" | "loading" | "loaded" | "error";
   items: ShipmentDocumentItem[];
+  unavailableTypes: string[];
   summary: {
     totalDocuments: number;
     availableFiles: number;
@@ -71,6 +73,7 @@ type ShipmentDocumentsLoadState = {
 const EMPTY_DOCS_STATE: ShipmentDocumentsLoadState = {
   status: "idle",
   items: [],
+  unavailableTypes: [],
   summary: {
     totalDocuments: 0,
     availableFiles: 0,
@@ -136,8 +139,8 @@ const dashboardCopy = {
     loadingDocs: "Cargando documentos...",
     docsLoadFailed: "No fue posible cargar los documentos de este embarque.",
     noDocsAvailable: "No hay archivos disponibles para este embarque.",
-    docsRegisteredUnavailable:
-      "Hay documentos registrados, pero el archivo no esta disponible para ver o descargar.",
+    docRegisteredUnavailable:
+      "Documento registrado, pero archivo no disponible.",
     openDocument: "Ver archivo",
     download: "Descargar PDF",
     retry: "Reintentar",
@@ -210,8 +213,8 @@ const dashboardCopy = {
     loadingDocs: "Loading documents...",
     docsLoadFailed: "Could not load the shipment documents.",
     noDocsAvailable: "No files available for this shipment.",
-    docsRegisteredUnavailable:
-      "There are registered documents, but the file is not available for viewing or download.",
+    docRegisteredUnavailable:
+      "Document is registered, but the file is unavailable.",
     openDocument: "View file",
     download: "Download PDF",
     retry: "Retry",
@@ -776,11 +779,34 @@ function ShipmentDocumentsGrid({
   }
 
   if (state.status === "loaded" && state.items.length === 0) {
+    if (state.unavailableTypes.length > 0) {
+      return (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {state.unavailableTypes.map((documentType) => (
+            <div
+              key={`unavailable-${documentType}`}
+              className="rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-amber-900 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-semibold leading-snug">
+                  {documentType}
+                </p>
+                <span className="shrink-0 text-xs font-medium">
+                  {translateDocumentState("NO_DISPONIBLE", locale)}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-6">
+                {copy.docRegisteredUnavailable}
+              </p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm text-cyl-ink/68">
-        {state.summary.unavailableFiles > 0
-          ? copy.docsRegisteredUnavailable
-          : copy.noDocsAvailable}
+        {copy.noDocsAvailable}
       </div>
     );
   }
@@ -799,9 +825,26 @@ function ShipmentDocumentsGrid({
         </div>
       ) : null}
 
-      {state.summary.unavailableFiles > 0 ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
-          {copy.docsRegisteredUnavailable}
+      {state.unavailableTypes.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {state.unavailableTypes.map((documentType) => (
+            <div
+              key={`unavailable-${documentType}`}
+              className="rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-amber-900 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="text-sm font-semibold leading-snug">
+                  {documentType}
+                </p>
+                <span className="shrink-0 text-xs font-medium">
+                  {translateDocumentState("NO_DISPONIBLE", locale)}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-6">
+                {copy.docRegisteredUnavailable}
+              </p>
+            </div>
+          ))}
         </div>
       ) : null}
 
@@ -1447,6 +1490,9 @@ export function ClientHomeDashboard({
       [shipment.groupKey]: {
         status: "loading",
         items: prev[shipment.groupKey]?.items ?? [],
+        unavailableTypes:
+          prev[shipment.groupKey]?.unavailableTypes ??
+          EMPTY_DOCS_STATE.unavailableTypes,
         summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
         errorMessage: null,
       },
@@ -1468,6 +1514,9 @@ export function ClientHomeDashboard({
         [shipment.groupKey]: {
           status: "loaded",
           items: Array.isArray(data.items) ? data.items : [],
+          unavailableTypes: Array.isArray(data.unavailableTypes)
+            ? data.unavailableTypes
+            : [],
           summary: {
             totalDocuments: data.summary?.totalDocuments ?? 0,
             availableFiles: data.summary?.availableFiles ?? 0,
@@ -1487,6 +1536,9 @@ export function ClientHomeDashboard({
         [shipment.groupKey]: {
           status: "error",
           items: prev[shipment.groupKey]?.items ?? [],
+          unavailableTypes:
+            prev[shipment.groupKey]?.unavailableTypes ??
+            EMPTY_DOCS_STATE.unavailableTypes,
           summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
           errorMessage: message,
         },

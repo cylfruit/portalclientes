@@ -12,6 +12,13 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const UNAVAILABLE_DOCUMENT_TYPES_TO_EXPOSE = [
+  "FULL_SET",
+  "DUS",
+  "DUS_LEGALIZADA",
+  "DUS_LEGALIZADA_ROSSI",
+] as const;
+
 type RouteContext = {
   params: Promise<{
     shipmentId: string;
@@ -166,6 +173,39 @@ export async function GET(request: NextRequest, context: RouteContext) {
       };
     });
 
+    let unavailableTypes: string[] = [];
+
+    if (type) {
+      if (items.length === 0 && (payload.resumen?.total_documentos ?? 0) > 0) {
+        unavailableTypes = [type.trim().toUpperCase()];
+      }
+    } else {
+      const availableTypes = new Set(
+        items.map((item) => item.type.trim().toUpperCase()),
+      );
+
+      const unavailableResults = await Promise.all(
+        UNAVAILABLE_DOCUMENT_TYPES_TO_EXPOSE.filter(
+          (documentType) => !availableTypes.has(documentType),
+        ).map(async (documentType) => {
+          const typedPayload = await listShipmentDocuments({
+            shipmentId,
+            season,
+            type: documentType,
+          });
+
+          return (typedPayload.resumen?.total_documentos ?? 0) > 0 &&
+            (typedPayload.data?.length ?? 0) === 0
+            ? documentType
+            : null;
+        }),
+      );
+
+      unavailableTypes = unavailableResults.flatMap((documentType) =>
+        documentType ? [documentType] : [],
+      );
+    }
+
     return NextResponse.json({
       success: true,
       shipmentId,
@@ -176,6 +216,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         availableFiles: payload.resumen?.archivos_disponibles ?? items.length,
         unavailableFiles: payload.resumen?.archivos_no_disponibles ?? 0,
       },
+      unavailableTypes,
       total: items.length,
       items,
     });
