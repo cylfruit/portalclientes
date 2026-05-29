@@ -1,6 +1,6 @@
 import {
   fetchContainerTrackingSnapshots,
-  fetchEmbarqueRows,
+  fetchEmbarqueRowsWithSeasonFallback,
   fetchEmbarqueSeasons,
   fetchVesselTrackingSnapshots,
   resolveDefaultEmbarqueSeasonCode,
@@ -24,7 +24,10 @@ async function loadDashboardRows() {
       resolveDefaultEmbarqueSeasonCode(seasons) ??
       process.env.CLICKHOUSE_DEFAULT_SEASON?.trim() ??
       null;
-    const rawRows = await fetchEmbarqueRows({ season: defaultSeason });
+    const rawRows = await fetchEmbarqueRowsWithSeasonFallback({
+      season: defaultSeason,
+      seasons,
+    });
     const rows = filterRowsForPortalUser(rawRows, currentUser);
     const containers = Array.from(
       new Set(

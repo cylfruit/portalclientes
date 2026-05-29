@@ -655,6 +655,70 @@ type ShipmentsQueryOptions = {
   search?: string | null;
 };
 
+type ShipmentsFallbackQueryOptions = ShipmentsQueryOptions & {
+  seasons?: ShipmentSeasonOption[];
+};
+
+function normalizeSeasonLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function appendSeasonCandidate(
+  candidates: string[],
+  value: string | null | undefined,
+) {
+  if (!value) {
+    return;
+  }
+
+  const normalized = normalizeSeasonLabel(value);
+
+  if (!normalized || candidates.includes(normalized)) {
+    return;
+  }
+
+  candidates.push(normalized);
+}
+
+function buildSeasonCandidates(
+  season: string,
+  seasons: ShipmentSeasonOption[],
+) {
+  const candidates: string[] = [];
+  const requestedSeason = normalizeSeasonLabel(season);
+  appendSeasonCandidate(candidates, requestedSeason);
+
+  const matchedSeason = seasons.find(
+    (option) =>
+      normalizeSeasonLabel(option.code) === requestedSeason ||
+      normalizeSeasonLabel(option.description) === requestedSeason,
+  );
+
+  appendSeasonCandidate(candidates, matchedSeason?.code);
+  appendSeasonCandidate(candidates, matchedSeason?.description);
+
+  const seasonSources = [
+    requestedSeason,
+    matchedSeason?.code ?? "",
+    matchedSeason?.description ?? "",
+  ];
+  const seasonTag = seasonSources
+    .map((value) => value.match(/\bT\s*(\d{1,2})\b/i)?.[1] ?? null)
+    .find((value) => Boolean(value));
+  const yearRange = seasonSources
+    .map((value) => value.match(/\b(20\d{2}\s*-\s*20\d{2})\b/)?.[1] ?? null)
+    .find((value) => Boolean(value));
+
+  if (seasonTag && yearRange) {
+    const compactYearRange = yearRange.replace(/\s+/g, "");
+    appendSeasonCandidate(candidates, `T${seasonTag} ${compactYearRange}`);
+    appendSeasonCandidate(candidates, `T${seasonTag}${compactYearRange}`);
+    appendSeasonCandidate(candidates, `T${seasonTag}-${compactYearRange}`);
+  }
+
+  return candidates;
+}
+
 function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
   const view = escapeIdentifier(
     process.env.CLICKHOUSE_VIEW?.trim() || "vw_Embarques_pc",
@@ -990,6 +1054,35 @@ export async function fetchEmbarqueRows(options: ShipmentsQueryOptions = {}) {
   );
 
   return payload.data.map(normalizeRow);
+}
+
+export async function fetchEmbarqueRowsWithSeasonFallback(
+  options: ShipmentsFallbackQueryOptions = {},
+) {
+  const season = options.season?.trim() ?? null;
+
+  if (!season) {
+    return fetchEmbarqueRows(options);
+  }
+
+  const seasonCandidates = buildSeasonCandidates(season, options.seasons ?? []);
+
+  let lastRows: EmbarqueRow[] = [];
+
+  for (const seasonCandidate of seasonCandidates) {
+    const candidateRows = await fetchEmbarqueRows({
+      season: seasonCandidate,
+      search: options.search ?? null,
+    });
+
+    if (candidateRows.length > 0) {
+      return candidateRows;
+    }
+
+    lastRows = candidateRows;
+  }
+
+  return lastRows;
 }
 
 export function resolveDefaultEmbarqueSeasonCode(

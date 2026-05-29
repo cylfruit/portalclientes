@@ -297,6 +297,32 @@ function matchesDateRange(
   return true;
 }
 
+function getTodayComparableDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function shouldRenderShipmentInMap(
+  shipment: ShipmentSummary,
+  todayComparableDate: string,
+) {
+  if (shipment.status === "Arribado") {
+    return false;
+  }
+
+  const etaOrAtaDate =
+    extractComparableDate(shipment.ata) ?? extractComparableDate(shipment.eta);
+
+  if (!etaOrAtaDate) {
+    return true;
+  }
+
+  return etaOrAtaDate >= todayComparableDate;
+}
+
 function matchesSearchField(
   shipment: ShipmentSummary,
   query: string,
@@ -1115,12 +1141,8 @@ function ShipmentExpandedRow({
   onClose: () => void;
 }) {
   const metaRows: [string, string][] = [
-    [copy.blLabel, shipment.bl],
-    [copy.bookingLabel, shipment.booking],
     [copy.etdLabel, formatDate(shipment.etd, locale)],
     [copy.etaLabel, formatDate(shipment.eta, locale)],
-    [copy.atdLabel, formatDate(shipment.atd, locale)],
-    [copy.ataLabel, formatDate(shipment.ata, locale)],
   ];
 
   return (
@@ -1300,6 +1322,18 @@ export function ClientHomeDashboard({
     () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
     [filteredShipments],
   );
+  const todayComparableDate = useMemo(() => getTodayComparableDate(), []);
+  const mapEligibleShipments = useMemo(
+    () =>
+      filteredShipments.filter((shipment) =>
+        shouldRenderShipmentInMap(shipment, todayComparableDate),
+      ),
+    [filteredShipments, todayComparableDate],
+  );
+  const mapEligibleShipmentKeys = useMemo(
+    () => new Set(mapEligibleShipments.map((shipment) => shipment.groupKey)),
+    [mapEligibleShipments],
+  );
 
   const totalPages = Math.max(
     1,
@@ -1362,46 +1396,49 @@ export function ClientHomeDashboard({
 
   // ── Tracked items for map ─────────────────────────────────────────────────
   const trackedItems = useMemo<TrackedShipmentItem[]>(() => {
-    return filteredShipments.reduce<TrackedShipmentItem[]>((acc, shipment) => {
-      const byContainer = trackingByContainer.get(
-        normalizeContainerKey(shipment.container),
-      );
+    return mapEligibleShipments.reduce<TrackedShipmentItem[]>(
+      (acc, shipment) => {
+        const byContainer = trackingByContainer.get(
+          normalizeContainerKey(shipment.container),
+        );
 
-      if (byContainer) {
-        acc.push({
-          shipment,
-          tracking: byContainer,
-          trackingMatchScope: "container",
-        });
+        if (byContainer) {
+          acc.push({
+            shipment,
+            tracking: byContainer,
+            trackingMatchScope: "container",
+          });
+          return acc;
+        }
+
+        const byVessel = trackingByVessel.get(
+          normalizeVesselKey(shipment.vesselName),
+        );
+
+        if (byVessel) {
+          acc.push({
+            shipment,
+            tracking: byVessel,
+            trackingMatchScope: "vessel",
+          });
+        }
+
         return acc;
-      }
-
-      const byVessel = trackingByVessel.get(
-        normalizeVesselKey(shipment.vesselName),
-      );
-
-      if (byVessel) {
-        acc.push({
-          shipment,
-          tracking: byVessel,
-          trackingMatchScope: "vessel",
-        });
-      }
-
-      return acc;
-    }, []);
-  }, [filteredShipments, trackingByContainer, trackingByVessel]);
+      },
+      [],
+    );
+  }, [mapEligibleShipments, trackingByContainer, trackingByVessel]);
   const selectedMapShipment = useMemo(() => {
     if (!mapSelectedKey) {
       return null;
     }
 
     return (
-      filteredShipments.find(
+      mapEligibleShipments.find(
         (shipment) => shipment.groupKey === mapSelectedKey,
       ) ?? null
     );
-  }, [filteredShipments, mapSelectedKey]);
+  }, [mapEligibleShipments, mapSelectedKey]);
   const selectedMapTracking = useMemo(() => {
     if (!selectedMapShipment) {
       return null;
@@ -1425,14 +1462,19 @@ export function ClientHomeDashboard({
   }, []);
 
   useEffect(() => {
-    if (mapSelectedKey && !filteredShipmentKeys.has(mapSelectedKey)) {
+    if (mapSelectedKey && !mapEligibleShipmentKeys.has(mapSelectedKey)) {
       setMapSelectedKey(null);
     }
 
     if (expandedKey && !filteredShipmentKeys.has(expandedKey)) {
       setExpandedKey(null);
     }
-  }, [expandedKey, filteredShipmentKeys, mapSelectedKey]);
+  }, [
+    expandedKey,
+    filteredShipmentKeys,
+    mapEligibleShipmentKeys,
+    mapSelectedKey,
+  ]);
 
   // ── Season change ─────────────────────────────────────────────────────────
   async function handleSeasonChange(season: string) {

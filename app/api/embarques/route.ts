@@ -4,7 +4,7 @@ import {
   filterRowsForPortalUser,
 } from "@/lib/auth";
 import {
-  fetchEmbarqueRows,
+  fetchEmbarqueRowsWithSeasonFallback,
   fetchEmbarqueSeasons,
   resolveDefaultEmbarqueSeasonCode,
 } from "@/lib/clickhouse";
@@ -33,9 +33,10 @@ export async function GET(request: NextRequest) {
     process.env.CLICKHOUSE_DEFAULT_SEASON?.trim() ??
     null;
 
-  const rows = await fetchEmbarqueRows({
+  const rows = await fetchEmbarqueRowsWithSeasonFallback({
     season: resolvedSeason,
     search: search ?? null,
+    seasons,
   });
 
   const filteredRows = filterRowsForPortalUser(rows, user);
