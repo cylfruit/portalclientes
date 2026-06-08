@@ -323,6 +323,55 @@ function shouldRenderShipmentInMap(
   return etaOrAtaDate >= todayComparableDate;
 }
 
+function normalizeSeasonFilterValue(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function appendSeasonFilterValue(values: Set<string>, value: string | null | undefined) {
+  const normalized = normalizeSeasonFilterValue(value);
+
+  if (normalized) {
+    values.add(normalized);
+  }
+}
+
+function buildSeasonFilterValues(
+  selectedSeason: string,
+  seasons: ShipmentSeasonOption[],
+) {
+  const values = new Set<string>();
+  const normalizedSelectedSeason = normalizeSeasonFilterValue(selectedSeason);
+
+  appendSeasonFilterValue(values, selectedSeason);
+
+  if (!normalizedSelectedSeason) {
+    return values;
+  }
+
+  const matchedSeason = seasons.find(
+    (season) =>
+      normalizeSeasonFilterValue(season.code) === normalizedSelectedSeason ||
+      normalizeSeasonFilterValue(season.description) ===
+        normalizedSelectedSeason,
+  );
+
+  appendSeasonFilterValue(values, matchedSeason?.code);
+  appendSeasonFilterValue(values, matchedSeason?.description);
+
+  return values;
+}
+
+function matchesSeasonFilter(
+  shipment: ShipmentSummary,
+  seasonFilterValues: Set<string>,
+) {
+  if (seasonFilterValues.size === 0) {
+    return true;
+  }
+
+  return seasonFilterValues.has(normalizeSeasonFilterValue(shipment.season));
+}
+
 function matchesSearchField(
   shipment: ShipmentSummary,
   query: string,
@@ -332,19 +381,27 @@ function matchesSearchField(
     return true;
   }
 
+  const shipmentId = shipment.id.toLowerCase();
+  const booking = shipment.booking.toLowerCase();
+  const container = shipment.container.toLowerCase();
+
   switch (searchField) {
     case "container":
-      return shipment.container.toLowerCase().includes(query);
+      return container.includes(query);
     case "shipment":
-      return shipment.id.toLowerCase().includes(query);
+      return shipmentId === query;
     case "booking":
-      return shipment.booking.toLowerCase().includes(query);
+      return booking.includes(query);
     default:
-      return (
-        shipment.id.toLowerCase().includes(query) ||
-        shipment.booking.toLowerCase().includes(query) ||
-        shipment.container.toLowerCase().includes(query)
-      );
+      if (shipmentId === query) {
+        return true;
+      }
+
+      if (/^\d+$/.test(query)) {
+        return false;
+      }
+
+      return booking.includes(query) || container.includes(query);
   }
 }
 
@@ -500,7 +557,7 @@ function downloadShipmentsAsCsv(
 ) {
   const c = dashboardCopy[locale];
   const headers = [
-    "ID",
+    "SHIPMENT",
     c.seasonLabel,
     "Recibidor",
     "Consignatario",
@@ -508,14 +565,9 @@ function downloadShipmentsAsCsv(
     c.destinationPort,
     c.vessel,
     c.containerLabel,
-    c.blLabel,
-    c.bookingLabel,
     "Cajas",
-    "Kg neto",
     c.etdLabel,
     c.etaLabel,
-    c.atdLabel,
-    c.ataLabel,
     "Estado",
   ];
 
@@ -529,14 +581,9 @@ function downloadShipmentsAsCsv(
       s.destinationPort,
       s.vesselName,
       s.container,
-      s.bl,
-      s.booking,
       s.totalBoxes,
-      s.netWeight,
       s.etd,
       s.eta,
-      s.atd,
-      s.ata,
       statusLabel(s.status, locale),
     ]
       .map(escapeCsvValue)
@@ -1252,7 +1299,6 @@ export function ClientHomeDashboard({
   vesselTrackingSnapshots,
   seasons: initialSeasons,
   defaultSeason,
-  errorMessage,
 }: ClientHomeDashboardProps) {
   const copy = dashboardCopy[locale];
 
@@ -1290,6 +1336,10 @@ export function ClientHomeDashboard({
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const allShipments = useMemo(() => buildShipmentsFromRows(rows), [rows]);
+  const selectedSeasonFilterValues = useMemo(
+    () => buildSeasonFilterValues(selectedSeason, initialSeasons),
+    [initialSeasons, selectedSeason],
+  );
   const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
   const isSearchSettling =
     searchQuery.trim().toLowerCase() !== normalizedSearchQuery;
@@ -1304,6 +1354,7 @@ export function ClientHomeDashboard({
   const filteredShipments = useMemo(() => {
     return allShipments.filter((shipment) => {
       return (
+        matchesSeasonFilter(shipment, selectedSeasonFilterValues) &&
         matchesSearchField(shipment, normalizedSearchQuery, searchField) &&
         matchesDateRange(shipment.etd, etdFrom, etdTo) &&
         matchesDateRange(shipment.eta, etaFrom, etaTo)
@@ -1313,6 +1364,7 @@ export function ClientHomeDashboard({
     allShipments,
     normalizedSearchQuery,
     searchField,
+    selectedSeasonFilterValues,
     etdFrom,
     etdTo,
     etaFrom,
@@ -1462,13 +1514,24 @@ export function ClientHomeDashboard({
   }, []);
 
   useEffect(() => {
-    if (mapSelectedKey && !mapEligibleShipmentKeys.has(mapSelectedKey)) {
-      setMapSelectedKey(null);
+    const shouldClearMapSelection =
+      mapSelectedKey && !mapEligibleShipmentKeys.has(mapSelectedKey);
+    const shouldClearExpandedRow =
+      expandedKey && !filteredShipmentKeys.has(expandedKey);
+
+    if (!shouldClearMapSelection && !shouldClearExpandedRow) {
+      return;
     }
 
-    if (expandedKey && !filteredShipmentKeys.has(expandedKey)) {
-      setExpandedKey(null);
-    }
+    queueMicrotask(() => {
+      if (shouldClearMapSelection) {
+        setMapSelectedKey(null);
+      }
+
+      if (shouldClearExpandedRow) {
+        setExpandedKey(null);
+      }
+    });
   }, [
     expandedKey,
     filteredShipmentKeys,

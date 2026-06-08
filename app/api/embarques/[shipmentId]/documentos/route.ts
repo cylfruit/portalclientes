@@ -8,27 +8,21 @@ import {
   listShipmentDocuments,
   ShipmentDocumentsApiError,
 } from "@/lib/shipment-documents-api";
+import {
+  CUSTOMER_VISIBLE_UNAVAILABLE_DOCUMENT_TYPES,
+  isCustomerVisibleDocumentType,
+  normalizeDocumentType,
+  shouldExposeCustomerDocument,
+} from "@/lib/shipment-documents-visibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const UNAVAILABLE_DOCUMENT_TYPES_TO_EXPOSE = [
-  "FULL_SET",
-  "DUS",
-  "DUS_LEGALIZADA",
-  "DUS_LEGALIZADA_ROSSI",
-] as const;
-const HIDDEN_DOCUMENT_STATUSES = new Set(["ELIMINADO", "DELETED"]);
 
 type RouteContext = {
   params: Promise<{
     shipmentId: string;
   }>;
 };
-
-function shouldShowDocument(document: { estado: string }) {
-  return !HIDDEN_DOCUMENT_STATUSES.has(document.estado.trim().toUpperCase());
-}
 
 function buildProxyDocumentUrl(input: {
   requestedShipmentId: string;
@@ -138,14 +132,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
       );
     }
 
+    if (type && !isCustomerVisibleDocumentType(type)) {
+      return NextResponse.json({
+        success: true,
+        shipmentId,
+        season,
+        type,
+        summary: {
+          totalDocuments: 0,
+          availableFiles: 0,
+          unavailableFiles: 0,
+        },
+        unavailableTypes: [],
+        total: 0,
+        items: [],
+      });
+    }
+
     const payload = await listShipmentDocuments({
       shipmentId,
       season,
       type,
     });
 
-    const visibleDocuments = payload.data!.filter(shouldShowDocument);
-    const unavailableFiles = payload.resumen?.archivos_no_disponibles ?? 0;
+    const visibleDocuments = payload.data!.filter(shouldExposeCustomerDocument);
 
     const items = visibleDocuments.map((document) => {
       const documentId = String(document.documento_id);
@@ -187,27 +197,30 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if (
         items.length === 0 &&
         (payload.resumen?.total_documentos ?? 0) > 0 &&
-        payload.data!.length === 0
+        payload.data!.filter(shouldExposeCustomerDocument).length === 0
       ) {
-        unavailableTypes = [type.trim().toUpperCase()];
+        unavailableTypes = [normalizeDocumentType(type)];
       }
     } else {
       const availableTypes = new Set(
-        items.map((item) => item.type.trim().toUpperCase()),
+        items.map((item) => normalizeDocumentType(item.type)),
       );
 
       const unavailableResults = await Promise.all(
-        UNAVAILABLE_DOCUMENT_TYPES_TO_EXPOSE.filter(
-          (documentType) => !availableTypes.has(documentType),
+        CUSTOMER_VISIBLE_UNAVAILABLE_DOCUMENT_TYPES.filter(
+          (documentType) =>
+            !availableTypes.has(normalizeDocumentType(documentType)),
         ).map(async (documentType) => {
           const typedPayload = await listShipmentDocuments({
             shipmentId,
             season,
             type: documentType,
           });
+          const visibleTypedDocuments =
+            typedPayload.data?.filter(shouldExposeCustomerDocument) ?? [];
 
           return (typedPayload.resumen?.total_documentos ?? 0) > 0 &&
-            (typedPayload.data?.length ?? 0) === 0
+            visibleTypedDocuments.length === 0
             ? documentType
             : null;
         }),
@@ -224,9 +237,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       season,
       type,
       summary: {
-        totalDocuments: items.length + unavailableFiles,
+        totalDocuments: items.length + unavailableTypes.length,
         availableFiles: items.length,
-        unavailableFiles,
+        unavailableFiles: unavailableTypes.length,
       },
       unavailableTypes,
       total: items.length,

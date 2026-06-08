@@ -5,9 +5,11 @@ import {
 } from "@/lib/auth";
 import { fetchEmbarqueRows } from "@/lib/clickhouse";
 import {
+  listShipmentDocuments,
   fetchShipmentDocumentFile,
   ShipmentDocumentsApiError,
 } from "@/lib/shipment-documents-api";
+import { shouldExposeCustomerDocument } from "@/lib/shipment-documents-visibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +97,24 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!(await userCanAccessShipment(shipmentId.trim(), season, auth.user))) {
       return NextResponse.json(
         { message: "Embarque no encontrado para la temporada indicada." },
+        { status: 404 },
+      );
+    }
+
+    const documentsPayload = await listShipmentDocuments({
+      shipmentId,
+      season,
+    });
+    const requestedDocumentId = documentId.trim();
+    const canDownloadDocument = documentsPayload.data!.some(
+      (document) =>
+        String(document.documento_id).trim() === requestedDocumentId &&
+        shouldExposeCustomerDocument(document),
+    );
+
+    if (!canDownloadDocument) {
+      return NextResponse.json(
+        { message: "Documento no encontrado para el embarque indicado." },
         { status: 404 },
       );
     }
