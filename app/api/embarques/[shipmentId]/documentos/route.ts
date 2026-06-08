@@ -154,6 +154,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       season,
       type,
     });
+    const courier = payload.courier
+      ? {
+          available: Boolean(payload.courier.disponible),
+          noNecesitaCourier: Boolean(payload.courier.no_necesita_courier),
+          trackingNumber: payload.courier.numero_tracking ?? null,
+          courierName: payload.courier.nombre_courier ?? null,
+          completedAt: payload.courier.fecha_completado_courier ?? null,
+          status: payload.courier.estado ?? null,
+        }
+      : null;
 
     const visibleDocuments = payload.data!.filter(shouldExposeCustomerDocument);
 
@@ -243,6 +253,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       },
       unavailableTypes,
       total: items.length,
+      courier,
       items,
     });
   } catch (error) {

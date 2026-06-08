@@ -74,8 +74,8 @@ export async function PortalShell({
   const activeKey = activePath === "/usuarios" ? "usuarios" : null;
 
   return (
-    <div className="min-h-screen bg-[#1d1d1d] text-cyl-paper">
-      <header className="sticky top-0 z-40 border-b border-cyl-gold/70 bg-black/88 backdrop-blur-xl">
+    <div className="portal-shell-root min-h-screen text-cyl-paper">
+      <header className="sticky top-0 z-40 border-b border-cyl-gold/70 bg-black/88 shadow-[0_18px_48px_rgba(0,0,0,0.32)] backdrop-blur-xl">
         <div className="relative overflow-hidden">
           <div className="absolute inset-0">
             <Image
@@ -200,7 +200,7 @@ export async function PortalShell({
         </div>
       </section>
 
-      <main className="relative mx-auto max-w-screen-2xl space-y-8 px-4 py-8 lg:px-8 lg:py-10">
+      <main className="portal-main relative mx-auto max-w-screen-2xl space-y-8 px-4 py-8 lg:px-8 lg:py-10">
         {children}
       </main>
 

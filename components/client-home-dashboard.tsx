@@ -53,9 +53,19 @@ type ShipmentDocumentsResponse = {
     availableFiles?: number;
     unavailableFiles?: number;
   };
+  courier?: ShipmentCourierInfo | null;
   unavailableTypes?: string[];
   items?: ShipmentDocumentItem[];
   message?: string;
+};
+
+type ShipmentCourierInfo = {
+  available: boolean;
+  noNecesitaCourier: boolean;
+  trackingNumber: string | null;
+  courierName: string | null;
+  completedAt: string | null;
+  status: string | null;
 };
 
 type ShipmentDocumentsLoadState = {
@@ -67,6 +77,7 @@ type ShipmentDocumentsLoadState = {
     availableFiles: number;
     unavailableFiles: number;
   };
+  courier: ShipmentCourierInfo | null;
   errorMessage: string | null;
 };
 
@@ -79,6 +90,7 @@ const EMPTY_DOCS_STATE: ShipmentDocumentsLoadState = {
     availableFiles: 0,
     unavailableFiles: 0,
   },
+  courier: null,
   errorMessage: null,
 };
 
@@ -134,6 +146,11 @@ const dashboardCopy = {
     loadingNewSeason: "Cargando temporada...",
     docsCenter: "Centro de Documentos",
     docsHint: "Los archivos se consultan en vivo por embarque y temporada.",
+    courierTitle: "Courier documental",
+    courierTracking: "Nro. tracking",
+    courierCompany: "Courier",
+    courierDate: "Actualizado",
+    courierNotRequired: "Este embarque no requiere courier documental.",
     loadDocs: "Cargar Documentos",
     reloadDocs: "Recargar",
     loadingDocs: "Cargando documentos...",
@@ -161,6 +178,10 @@ const dashboardCopy = {
     etaLabel: "ETA",
     atdLabel: "ATD",
     ataLabel: "ATA",
+    exportReceiverLabel: "Recibidor",
+    exportConsigneeLabel: "Consignatario",
+    exportBoxesLabel: "Cajas",
+    exportStatusLabel: "Estado",
     trackingProgress: "Avance estimado",
     csvFilePrefix: "embarques-clientes",
     arrivedLabel: "Arribado",
@@ -208,6 +229,11 @@ const dashboardCopy = {
     loadingNewSeason: "Loading season...",
     docsCenter: "Document Center",
     docsHint: "Files are fetched live by shipment and season.",
+    courierTitle: "Document courier",
+    courierTracking: "Tracking no.",
+    courierCompany: "Courier",
+    courierDate: "Updated",
+    courierNotRequired: "This shipment does not require document courier.",
     loadDocs: "Load Documents",
     reloadDocs: "Reload",
     loadingDocs: "Loading documents...",
@@ -235,6 +261,10 @@ const dashboardCopy = {
     etaLabel: "ETA",
     atdLabel: "ATD",
     ataLabel: "ATA",
+    exportReceiverLabel: "Receiver",
+    exportConsigneeLabel: "Consignee",
+    exportBoxesLabel: "Boxes",
+    exportStatusLabel: "Status",
     trackingProgress: "Estimated progress",
     csvFilePrefix: "client-shipments",
     arrivedLabel: "Arrived",
@@ -559,16 +589,16 @@ function downloadShipmentsAsCsv(
   const headers = [
     "SHIPMENT",
     c.seasonLabel,
-    "Recibidor",
-    "Consignatario",
+    c.exportReceiverLabel,
+    c.exportConsigneeLabel,
     c.originPort,
     c.destinationPort,
     c.vessel,
     c.containerLabel,
-    "Cajas",
+    c.exportBoxesLabel,
     c.etdLabel,
     c.etaLabel,
-    "Estado",
+    c.exportStatusLabel,
   ];
 
   const lines = shipments.map((s) =>
@@ -978,6 +1008,74 @@ function ShipmentDocumentsGrid({
   );
 }
 
+function ShipmentCourierCard({
+  courier,
+  copy,
+  locale,
+}: {
+  courier: ShipmentCourierInfo;
+  copy: (typeof dashboardCopy)[PortalLocale];
+  locale: PortalLocale;
+}) {
+  if (!courier.available) {
+    return null;
+  }
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-[1.35rem] border border-cyl-gold/28 bg-gradient-to-br from-[#fff8e6] via-white to-[#f6efdf] text-sm text-cyl-ink shadow-[0_14px_34px_rgba(17,11,2,0.09)]">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#151515] text-lg font-black text-cyl-gold shadow-sm">
+            C
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a5a12]">
+                {copy.courierTitle}
+              </p>
+              <span className="rounded-full border border-emerald-500/18 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+                {courier.noNecesitaCourier ? "No aplica" : "Disponible"}
+              </span>
+            </div>
+            {courier.noNecesitaCourier ? (
+              <p className="mt-2 font-semibold text-cyl-ink">
+                {copy.courierNotRequired}
+              </p>
+            ) : (
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
+                    {copy.courierCompany}
+                  </p>
+                  <p className="mt-1 font-semibold text-cyl-ink">
+                    {courier.courierName ?? copy.noData}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
+                    {copy.courierTracking}
+                  </p>
+                  <p className="mt-1 break-all font-mono text-sm font-bold text-cyl-ink">
+                    {courier.trackingNumber ?? copy.noData}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
+                    {copy.courierDate}
+                  </p>
+                  <p className="mt-1 font-semibold text-cyl-ink">
+                    {formatTrackingDate(courier.completedAt, locale)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TrackingTimeline({
   shipment,
   tracking,
@@ -1274,6 +1372,14 @@ function ShipmentExpandedRow({
               </button>
             </div>
             <p className="mt-1 text-xs text-cyl-ink/50">{copy.docsHint}</p>
+
+            {docsState.status === "loaded" && docsState.courier ? (
+              <ShipmentCourierCard
+                courier={docsState.courier}
+                copy={copy}
+                locale={locale}
+              />
+            ) : null}
 
             <ShipmentDocumentsGrid
               copy={copy}
@@ -1599,6 +1705,7 @@ export function ClientHomeDashboard({
           prev[shipment.groupKey]?.unavailableTypes ??
           EMPTY_DOCS_STATE.unavailableTypes,
         summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
+        courier: prev[shipment.groupKey]?.courier ?? EMPTY_DOCS_STATE.courier,
         errorMessage: null,
       },
     }));
@@ -1627,6 +1734,7 @@ export function ClientHomeDashboard({
             availableFiles: data.summary?.availableFiles ?? 0,
             unavailableFiles: data.summary?.unavailableFiles ?? 0,
           },
+          courier: data.courier ?? null,
           errorMessage: null,
         },
       }));
@@ -1645,6 +1753,7 @@ export function ClientHomeDashboard({
             prev[shipment.groupKey]?.unavailableTypes ??
             EMPTY_DOCS_STATE.unavailableTypes,
           summary: prev[shipment.groupKey]?.summary ?? EMPTY_DOCS_STATE.summary,
+          courier: prev[shipment.groupKey]?.courier ?? EMPTY_DOCS_STATE.courier,
           errorMessage: message,
         },
       }));

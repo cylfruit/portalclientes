@@ -14,8 +14,18 @@ type DocumentsApiListResponse = {
     archivos_disponibles?: number;
     archivos_no_disponibles?: number;
   } | null;
+  courier?: DocumentsApiCourierInfo | null;
   data?: DocumentsApiShipmentDocument[];
 } & Record<string, unknown>;
+
+export type DocumentsApiCourierInfo = {
+  disponible?: boolean;
+  no_necesita_courier?: boolean;
+  numero_tracking?: string | null;
+  nombre_courier?: string | null;
+  fecha_completado_courier?: string | null;
+  estado?: string | null;
+};
 
 export type DocumentsApiShipmentDocument = {
   documento_id: number;

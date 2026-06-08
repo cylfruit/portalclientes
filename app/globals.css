@@ -27,6 +27,9 @@
   --cyl-gold: #f2c65c;
   --cyl-gold-soft: #f6e0a6;
   --cyl-line: rgba(33, 28, 20, 0.1);
+  --cyl-muted: #6d6255;
+  --cyl-shadow: 0 24px 58px rgba(17, 11, 2, 0.1);
+  --cyl-shadow-soft: 0 14px 34px rgba(17, 11, 2, 0.08);
 }
 
 @theme inline {
@@ -40,15 +43,20 @@
   --color-cyl-gold: var(--cyl-gold);
   --color-cyl-gold-soft: var(--cyl-gold-soft);
   --color-cyl-line: var(--cyl-line);
+  --color-cyl-muted: var(--cyl-muted);
 }
 
 html {
   background: var(--background);
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(242, 198, 92, 0.18), transparent 30rem),
+    radial-gradient(circle at bottom right, rgba(33, 28, 20, 0.08), transparent 32rem),
+    var(--background);
   color: var(--foreground);
   font-family:
     "MontserratPortal", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -62,6 +70,46 @@ a {
   color: inherit;
 }
 
+:focus-visible {
+  outline: 3px solid rgba(242, 198, 92, 0.7);
+  outline-offset: 3px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(33, 28, 20, 0.24) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(33, 28, 20, 0.24);
+  background-clip: content-box;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+button:not(:disabled):hover,
+a[role="button"]:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
 .portal-display {
   font-family: "StonerPortal", Georgia, "Times New Roman", serif;
   font-weight: 400;
@@ -73,8 +121,24 @@ a {
   border-radius: 1.75rem;
   border: 1px solid rgba(33, 28, 20, 0.08);
   background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 24px 48px rgba(17, 11, 2, 0.08);
+  box-shadow: var(--cyl-shadow-soft);
   backdrop-filter: blur(12px);
+}
+
+.panel,
+.metric-card,
+.table-shell,
+.dark-panel {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.panel:hover,
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--cyl-shadow);
 }
 
 .dark-panel {
@@ -97,7 +161,18 @@ a {
     rgba(255, 255, 255, 0.96),
     rgba(246, 239, 223, 0.9)
   );
-  box-shadow: 0 18px 40px rgba(17, 11, 2, 0.07);
+  box-shadow: var(--cyl-shadow-soft);
+}
+
+.portal-shell-root {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(242, 198, 92, 0.18), transparent 30rem),
+    linear-gradient(180deg, #1d1d1d 0%, #202020 26%, #fbf8ef 26%, #fbf8ef 100%);
+}
+
+.portal-main {
+  animation: dashboard-enter 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .section-kicker {
@@ -448,4 +523,15 @@ a {
 
 .dashboard-spinner {
   animation: dashboard-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
