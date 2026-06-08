@@ -82,6 +82,7 @@ export async function PortalShell({
               src="/brand/bg_intranet.jpg"
               alt=""
               fill
+              loading="eager"
               sizes="100vw"
               className="object-cover opacity-16"
             />
@@ -208,6 +209,7 @@ export async function PortalShell({
           <Image
             src="/brand/bg_intranet.jpg"
             alt=""
+            loading="eager"
             fill
             sizes="100vw"
             className="object-cover opacity-22"
