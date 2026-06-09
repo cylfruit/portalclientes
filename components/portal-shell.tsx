@@ -6,6 +6,7 @@ import {
   readSessionClaimsFromCookies,
 } from "@/lib/auth";
 import { isPortalAdminRole } from "@/lib/auth-session";
+import { PortalMobileNav } from "./portal-mobile-nav";
 
 type PortalShellProps = {
   activePath: "/" | "/usuarios";
@@ -107,33 +108,58 @@ export async function PortalShell({
             </Link>
 
             {visibleNavigation.length > 0 ? (
-              <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
-                {visibleNavigation.map((item) => {
-                  const isActive = item.key === activeKey;
+              <>
+                <button
+                  id="portal-nav-toggle"
+                  type="button"
+                  className="ml-auto inline-flex items-center justify-center rounded-2xl border border-white/14 bg-white/8 p-2.5 text-white transition hover:bg-white/14 lg:hidden"
+                  aria-label="Toggle navigation"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
+                  </svg>
+                </button>
 
-                  return (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                        isActive
-                          ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
-                          : "text-white/74 hover:bg-white/6 hover:text-white"
-                      }`}
-                    >
-                      <span
-                        className={`${isActive ? "text-cyl-gold" : "text-white/55"}`}
+                <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
+                  {visibleNavigation.map((item) => {
+                    const isActive = item.key === activeKey;
+
+                    return (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                          isActive
+                            ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
+                            : "text-white/74 hover:bg-white/6 hover:text-white"
+                        }`}
                       >
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
+                        <span
+                          className={`${isActive ? "text-cyl-gold" : "text-white/55"}`}
+                        >
+                          {item.icon}
+                        </span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </>
             ) : null}
 
-            <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <div
+              className={`flex items-center gap-2 sm:gap-3 ${visibleNavigation.length > 0 ? "" : "ml-auto"}`}
+            >
               <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white md:flex">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyl-gold/16 text-cyl-gold">
                   <UserIcon />
@@ -203,6 +229,65 @@ export async function PortalShell({
       <main className="portal-main relative mx-auto max-w-screen-2xl space-y-8 px-4 py-8 lg:px-8 lg:py-10">
         {children}
       </main>
+
+      {/* Mobile nav overlay (root level to avoid z-index stacking issues) */}
+      <div id="portal-nav-overlay" className="fixed inset-0 z-100 hidden">
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          id="portal-nav-backdrop"
+        ></div>
+        <div className="absolute right-0 top-0 h-full w-72 bg-[#1d1d1d] border-l border-white/10 shadow-2xl p-6 translate-x-full transition-transform duration-300">
+          <div className="flex items-center justify-between mb-8">
+            <span className="text-sm font-semibold text-white/70">
+              Navegación
+            </span>
+            <button
+              id="portal-nav-close"
+              type="button"
+              className="rounded-full border border-white/14 bg-white/8 p-2 text-white hover:bg-white/14"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+          <nav className="flex flex-col gap-2">
+            {visibleNavigation.map((item) => {
+              const isActive = item.key === activeKey;
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                    isActive
+                      ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.18)]"
+                      : "text-white/74 hover:bg-white/6 hover:text-white"
+                  }`}
+                >
+                  <span
+                    className={isActive ? "text-cyl-gold" : "text-white/55"}
+                  >
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
+      <PortalMobileNav />
 
       <footer className="relative overflow-hidden border-t border-cyl-gold/20 bg-black">
         <div className="absolute inset-0">

@@ -1798,13 +1798,13 @@ export function ClientHomeDashboard({
       {/* ── Búsqueda y filtros ─────────────────────────────────────────────── */}
       <div
         aria-busy={isLoadingSeason || isSearchSettling}
-        className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-white/10 bg-white/6 px-4 py-4 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:px-5 ${
+        className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-black/8 bg-white/88 px-4 py-4 text-cyl-ink shadow-[0_18px_44px_rgba(17,11,2,0.12)] backdrop-blur-sm sm:px-5 lg:border-white/10 lg:bg-white/6 lg:text-white lg:shadow-[0_16px_40px_rgba(0,0,0,0.12)] ${
           isLoadingSeason || isSearchSettling ? "is-busy" : ""
         }`}
       >
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.6fr)_220px_220px_auto_auto] xl:items-end">
-          <div className="relative xl:col-span-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/50">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.6fr)_220px_220px_auto_auto] xl:items-end">
+          <div className="relative sm:col-span-2 lg:col-span-1 xl:col-span-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
               {isSearchSettling ? (
                 <SpinnerIcon className="h-4 w-4" />
               ) : (
@@ -1819,7 +1819,7 @@ export function ClientHomeDashboard({
                 setCurrentPage(1);
               }}
               placeholder={copy.searchPlaceholder}
-              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 pl-9 pr-4 text-sm text-white placeholder:text-white/45 backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
+              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 pl-9 pr-4 text-sm text-cyl-ink placeholder:text-cyl-ink/42 backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:placeholder:text-white/45 lg:focus:border-white/30 lg:focus:bg-white/14"
             />
           </div>
 
@@ -1830,7 +1830,7 @@ export function ClientHomeDashboard({
                 setSearchField(e.target.value as SearchField);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full appearance-none rounded-2xl border border-white/14 bg-white/10 pl-4 pr-9 text-sm font-medium text-white backdrop-blur-sm transition focus:border-white/30 focus:outline-none"
+              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30"
             >
               <option value="all" className="bg-[#1d1d1d] text-white">
                 {copy.searchByLabel}: {copy.searchByAll}
@@ -1845,7 +1845,7 @@ export function ClientHomeDashboard({
                 {copy.searchByLabel}: {copy.searchByBooking}
               </option>
             </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
               <ChevronDownIcon />
             </span>
           </div>
@@ -1855,7 +1855,7 @@ export function ClientHomeDashboard({
               value={selectedSeason}
               onChange={(e) => void handleSeasonChange(e.target.value)}
               disabled={isLoadingSeason}
-              className="h-11 appearance-none rounded-2xl border border-white/14 bg-white/10 pl-4 pr-9 text-sm font-medium text-white backdrop-blur-sm transition focus:border-white/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30"
             >
               {initialSeasons.length > 0 ? (
                 initialSeasons.map((season) => (
@@ -1876,7 +1876,7 @@ export function ClientHomeDashboard({
                 </option>
               )}
             </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/50">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
               <ChevronDownIcon />
             </span>
           </div>
@@ -1885,7 +1885,7 @@ export function ClientHomeDashboard({
             type="button"
             onClick={clearFilters}
             disabled={!hasActiveFilters || isLoadingSeason}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/14 bg-white/10 px-4 text-sm font-semibold text-white transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white/70 px-4 text-sm font-semibold text-cyl-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 lg:border-white/14 lg:bg-white/10 lg:text-white lg:hover:bg-white/16"
           >
             <CloseIcon />
             {copy.clearFilters}
@@ -1912,9 +1912,9 @@ export function ClientHomeDashboard({
           </button>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
               {copy.etdFromLabel}
             </span>
             <input
@@ -1925,13 +1925,12 @@ export function ClientHomeDashboard({
                 setEtdFrom(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
-              style={{ colorScheme: "dark" }}
+              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
               {copy.etdToLabel}
             </span>
             <input
@@ -1942,13 +1941,12 @@ export function ClientHomeDashboard({
                 setEtdTo(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
-              style={{ colorScheme: "dark" }}
+              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
               {copy.etaFromLabel}
             </span>
             <input
@@ -1959,13 +1957,12 @@ export function ClientHomeDashboard({
                 setEtaFrom(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
-              style={{ colorScheme: "dark" }}
+              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
               {copy.etaToLabel}
             </span>
             <input
@@ -1976,15 +1973,14 @@ export function ClientHomeDashboard({
                 setEtaTo(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-white/14 bg-white/10 px-4 text-sm text-white backdrop-blur-sm transition focus:border-white/30 focus:bg-white/14 focus:outline-none"
-              style={{ colorScheme: "dark" }}
+              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
             />
           </label>
         </div>
 
         <p
           aria-live="polite"
-          className={`mt-3 text-xs text-white/55 transition-opacity duration-200 ${
+          className={`mt-3 text-xs text-cyl-ink/55 transition-opacity duration-200 lg:text-white/55 ${
             isSearchSettling ? "opacity-80" : "opacity-100"
           }`}
         >

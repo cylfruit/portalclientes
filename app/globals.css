@@ -168,7 +168,14 @@ a[role="button"]:not(:disabled):hover {
   isolation: isolate;
   background:
     radial-gradient(circle at 12% 0%, rgba(242, 198, 92, 0.18), transparent 30rem),
-    linear-gradient(180deg, #1d1d1d 0%, #202020 26%, #fbf8ef 26%, #fbf8ef 100%);
+    linear-gradient(
+      180deg,
+      #1d1d1d 0,
+      #202020 30rem,
+      #26231d 42rem,
+      #fbf8ef 70rem,
+      #fbf8ef 100%
+    );
 }
 
 .portal-main {
