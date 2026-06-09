@@ -1830,7 +1830,7 @@ export function ClientHomeDashboard({
                 setSearchField(e.target.value as SearchField);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30"
+              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30 lg:focus:bg-white/14"
             >
               <option value="all" className="bg-[#1d1d1d] text-white">
                 {copy.searchByLabel}: {copy.searchByAll}
@@ -1855,7 +1855,7 @@ export function ClientHomeDashboard({
               value={selectedSeason}
               onChange={(e) => void handleSeasonChange(e.target.value)}
               disabled={isLoadingSeason}
-              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30"
+              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30 lg:focus:bg-white/14"
             >
               {initialSeasons.length > 0 ? (
                 initialSeasons.map((season) => (
