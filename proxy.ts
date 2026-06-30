@@ -6,7 +6,9 @@ import {
   readSessionTokenFromRequest,
   sanitizeNextPath,
   verifyPortalSessionToken,
+  normalizeOrigin,
 } from "@/lib/auth-session";
+import { SECURITY_HEADERS, getContentSecurityPolicy } from "@/lib/security-headers";
 
 function isPublicPath(pathname: string) {
   return (
@@ -31,8 +33,34 @@ function isStaticAsset(pathname: string) {
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
+  function withSecurityHeaders(response: NextResponse): NextResponse {
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      response.headers.set(key, value);
+    }
+    if (!response.headers.has("Content-Security-Policy")) {
+      response.headers.set("Content-Security-Policy", getContentSecurityPolicy());
+    }
+    return response;
+  }
+
+  function isAllowedOrigin(origin: string | null): boolean {
+    if (!origin) return true;
+    const configuredOrigin =
+      normalizeOrigin(process.env.AUTH_PUBLIC_ORIGIN) ??
+      normalizeOrigin(process.env.APP_PUBLIC_URL);
+    if (configuredOrigin) {
+      return origin === configuredOrigin;
+    }
+    try {
+      const o = new URL(origin);
+      return o.hostname === "localhost" || o.hostname === "127.0.0.1";
+    } catch {
+      return false;
+    }
+  }
+
   if (isStaticAsset(pathname)) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
   const sessionToken = readSessionTokenFromRequest(request);
@@ -41,12 +69,14 @@ export async function proxy(request: NextRequest) {
     : null;
 
   if (isPublicPath(pathname)) {
-    return ensureCsrfCookie(request, NextResponse.next());
+    return withSecurityHeaders(ensureCsrfCookie(request, NextResponse.next()));
   }
 
   if (!sessionClaims) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ message: "No autenticado." }, { status: 401 });
+      return withSecurityHeaders(
+        NextResponse.json({ message: "No autenticado." }, { status: 401 }),
+      );
     }
 
     const loginUrl = buildRequestUrl(
@@ -54,24 +84,30 @@ export async function proxy(request: NextRequest) {
       `/login?next=${encodeURIComponent(sanitizeNextPath(`${pathname}${search}`))}`,
     );
 
-    return ensureCsrfCookie(request, NextResponse.redirect(loginUrl));
+    return withSecurityHeaders(
+      ensureCsrfCookie(request, NextResponse.redirect(loginUrl)),
+    );
   }
 
   if (isAdminPath(pathname) && !isPortalAdminRole(sessionClaims.roleKey)) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json(
-        { message: "No tienes permisos para esta ruta." },
-        { status: 403 },
+      return withSecurityHeaders(
+        NextResponse.json(
+          { message: "No tienes permisos para esta ruta." },
+          { status: 403 },
+        ),
       );
     }
 
-    return ensureCsrfCookie(
-      request,
-      NextResponse.redirect(buildRequestUrl(request, "/")),
+    return withSecurityHeaders(
+      ensureCsrfCookie(
+        request,
+        NextResponse.redirect(buildRequestUrl(request, "/")),
+      ),
     );
   }
 
-  return ensureCsrfCookie(request, NextResponse.next());
+  return withSecurityHeaders(ensureCsrfCookie(request, NextResponse.next()));
 }
 
 export const config = {

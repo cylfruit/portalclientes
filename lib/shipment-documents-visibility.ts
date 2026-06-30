@@ -3,7 +3,6 @@ import { type DocumentsApiShipmentDocument } from "@/lib/shipment-documents-api"
 const CUSTOMER_VISIBLE_DOCUMENT_TYPES = new Set([
   "PACKING_LIST",
   "FACTURA_COMERCIAL",
-  "FACTURA_PROFORMA",
   "FULL_SET",
   "ISF",
 ]);
@@ -11,7 +10,6 @@ const CUSTOMER_VISIBLE_DOCUMENT_TYPES = new Set([
 export const CUSTOMER_VISIBLE_UNAVAILABLE_DOCUMENT_TYPES = [
   "PACKING_LIST",
   "FACTURA_COMERCIAL",
-  "FACTURA_PROFORMA",
   "FULL_SET",
   "ISF",
   "OTROS_DOCUMENTOS",

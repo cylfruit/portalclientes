@@ -17,6 +17,10 @@ import {
   updatePortalClientUserRecord,
   verifyPortalUserPassword,
 } from "@/lib/portal-users";
+import {
+  checkLoginRateLimit,
+  resetLoginRateLimit,
+} from "@/lib/rate-limiter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,11 +53,29 @@ export async function POST(request: NextRequest) {
     return redirectToLogin(request, nextPath, "invalid-credentials");
   }
 
+  const clientIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  const rateLimit = checkLoginRateLimit(`login:${clientIp}`);
+
+  if (!rateLimit.allowed) {
+    return new NextResponse("Demasiados intentos. Intenta nuevamente en 15 minutos.", {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.ceil(rateLimit.retryAfterMs / 1000)),
+      },
+    });
+  }
+
   const user = await fetchPortalClientUserRecordByUsername(username);
 
   if (!user || !verifyPortalUserPassword(password, user.passwordHash)) {
     return redirectToLogin(request, nextPath, "invalid-credentials");
   }
+
+  resetLoginRateLimit(`login:${clientIp}`);
 
   if (user.status === "Pendiente") {
     return redirectToLogin(request, nextPath, "pending");

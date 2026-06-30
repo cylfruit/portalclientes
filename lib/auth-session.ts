@@ -75,7 +75,7 @@ export function getSessionMaxAgeSeconds() {
 export function getSessionCookieOptions() {
   return {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: "strict" as const,
     secure: shouldUseSecureCookies(),
     path: "/",
     maxAge: getSessionMaxAgeSeconds(),
@@ -151,7 +151,7 @@ export function sanitizeNextPath(nextPath?: string | null) {
   return nextPath;
 }
 
-function normalizeOrigin(value: string | null | undefined) {
+export function normalizeOrigin(value: string | null | undefined) {
   const normalized = value?.trim();
 
   if (!normalized) {
@@ -199,6 +199,14 @@ export function resolveRequestOrigin(request: NextRequest) {
 
   if (configuredOrigin) {
     return configuredOrigin;
+  }
+
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction) {
+    throw new Error(
+      "AUTH_PUBLIC_ORIGIN or APP_PUBLIC_URL must be set in production to prevent host header injection.",
+    );
   }
 
   const host =

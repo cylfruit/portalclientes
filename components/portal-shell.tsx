@@ -66,6 +66,9 @@ export async function PortalShell({
   const csrfToken = await readCsrfTokenFromCookies();
   const locale = sessionClaims?.preferredLocale === "en" ? "en" : "es";
   const copy = shellCopy[locale];
+  const displayUserName = (
+    sessionClaims?.fullName ?? copy.authenticatedClient
+  ).toLocaleUpperCase(locale === "es" ? "es-CL" : "en-US");
   const canManageUsers = sessionClaims
     ? isPortalAdminRole(sessionClaims.roleKey)
     : false;
@@ -164,7 +167,7 @@ export async function PortalShell({
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyl-gold/16 text-cyl-gold">
                   <UserIcon />
                 </span>
-                {sessionClaims?.fullName ?? copy.authenticatedClient}
+                {displayUserName}
               </div>
               {canManageUsers ? (
                 <Link

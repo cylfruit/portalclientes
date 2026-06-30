@@ -32,6 +32,8 @@ type PortalLocale = "es" | "en";
 
 type SearchField = "all" | "container" | "shipment" | "booking";
 
+type ShipmentStatusFilter = ShipmentSummary["status"];
+
 type ShipmentDocumentItem = {
   id: string;
   shipmentId: string;
@@ -822,14 +824,27 @@ function SummaryCard({
   count,
   subtitle,
   accentClass,
+  isActive,
+  onClick,
 }: {
   label: string;
   count: number;
   subtitle: string;
   accentClass: string;
+  isActive: boolean;
+  onClick: () => void;
 }) {
   return (
-    <article className="rounded-[1.6rem] border border-black/8 bg-white p-6 shadow-[0_16px_40px_rgba(13,13,13,0.10)]">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isActive}
+      className={`rounded-[1.6rem] border bg-white p-6 text-left shadow-[0_16px_40px_rgba(13,13,13,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_46px_rgba(13,13,13,0.14)] ${
+        isActive
+          ? "border-cyl-gold ring-2 ring-cyl-gold/45"
+          : "border-black/8"
+      }`}
+    >
       <p
         className={`text-xs font-bold uppercase tracking-[0.2em] ${accentClass}`}
       >
@@ -839,7 +854,7 @@ function SummaryCard({
         {formatNumber(count)}
       </p>
       <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
-    </article>
+    </button>
   );
 }
 
@@ -1412,12 +1427,12 @@ export function ClientHomeDashboard({
   const [selectedSeason, setSelectedSeason] = useState<string>(
     defaultSeason ?? initialSeasons[0]?.code ?? "",
   );
+  const [statusFilter, setStatusFilter] =
+    useState<ShipmentStatusFilter | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchField, setSearchField] = useState<SearchField>("all");
   const [etdFrom, setEtdFrom] = useState("");
-  const [etdTo, setEtdTo] = useState("");
   const [etaFrom, setEtaFrom] = useState("");
-  const [etaTo, setEtaTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [isLoadingSeason, setIsLoadingSeason] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -1452,18 +1467,17 @@ export function ClientHomeDashboard({
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
     searchField !== "all" ||
+    statusFilter ||
     etdFrom ||
-    etdTo ||
-    etaFrom ||
-    etaTo,
+    etaFrom,
   );
-  const filteredShipments = useMemo(() => {
+  const shipmentsBeforeStatusFilter = useMemo(() => {
     return allShipments.filter((shipment) => {
       return (
         matchesSeasonFilter(shipment, selectedSeasonFilterValues) &&
         matchesSearchField(shipment, normalizedSearchQuery, searchField) &&
-        matchesDateRange(shipment.etd, etdFrom, etdTo) &&
-        matchesDateRange(shipment.eta, etaFrom, etaTo)
+        matchesDateRange(shipment.etd, etdFrom, "") &&
+        matchesDateRange(shipment.eta, etaFrom, "")
       );
     });
   }, [
@@ -1472,10 +1486,17 @@ export function ClientHomeDashboard({
     searchField,
     selectedSeasonFilterValues,
     etdFrom,
-    etdTo,
     etaFrom,
-    etaTo,
   ]);
+  const filteredShipments = useMemo(() => {
+    if (!statusFilter) {
+      return shipmentsBeforeStatusFilter;
+    }
+
+    return shipmentsBeforeStatusFilter.filter(
+      (shipment) => shipment.status === statusFilter,
+    );
+  }, [shipmentsBeforeStatusFilter, statusFilter]);
   const filteredShipmentKeys = useMemo(
     () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
     [filteredShipments],
@@ -1507,17 +1528,17 @@ export function ClientHomeDashboard({
   // ── Summary counts ────────────────────────────────────────────────────────
   const { inTransitCount, arrivingSoonCount, docsReadyCount } = useMemo(() => {
     return {
-      inTransitCount: filteredShipments.filter(
+      inTransitCount: shipmentsBeforeStatusFilter.filter(
         (shipment) => shipment.status === "En transito",
       ).length,
-      arrivingSoonCount: filteredShipments.filter(
+      arrivingSoonCount: shipmentsBeforeStatusFilter.filter(
         (shipment) => shipment.status === "Programado",
       ).length,
-      docsReadyCount: filteredShipments.filter(
+      docsReadyCount: shipmentsBeforeStatusFilter.filter(
         (shipment) => shipment.status === "Arribado",
       ).length,
     };
-  }, [filteredShipments]);
+  }, [shipmentsBeforeStatusFilter]);
 
   // ── Tracking lookup ───────────────────────────────────────────────────────
   const trackingByContainer = useMemo(
@@ -1612,11 +1633,18 @@ export function ClientHomeDashboard({
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setSearchField("all");
+    setStatusFilter(null);
     setEtdFrom("");
-    setEtdTo("");
     setEtaFrom("");
-    setEtaTo("");
     setCurrentPage(1);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((status: ShipmentStatusFilter) => {
+    setStatusFilter((currentStatus) =>
+      currentStatus === status ? null : status,
+    );
+    setCurrentPage(1);
+    setExpandedKey(null);
   }, []);
 
   useEffect(() => {
@@ -1653,10 +1681,9 @@ export function ClientHomeDashboard({
     setExpandedKey(null);
     setSearchQuery("");
     setSearchField("all");
+    setStatusFilter(null);
     setEtdFrom("");
-    setEtdTo("");
     setEtaFrom("");
-    setEtaTo("");
     setIsLoadingSeason(true);
 
     try {
@@ -1780,18 +1807,24 @@ export function ClientHomeDashboard({
           count={arrivingSoonCount}
           subtitle={copy.arrivingSoonSub}
           accentClass="text-amber-600"
+          isActive={statusFilter === "Programado"}
+          onClick={() => handleStatusFilterChange("Programado")}
         />
         <SummaryCard
           label={copy.inTransit}
           count={inTransitCount}
           subtitle={copy.inTransitSub}
           accentClass="text-sky-600"
+          isActive={statusFilter === "En transito"}
+          onClick={() => handleStatusFilterChange("En transito")}
         />
         <SummaryCard
           label={copy.docsReady}
           count={docsReadyCount}
           subtitle={copy.docsReadySub}
           accentClass="text-emerald-600"
+          isActive={statusFilter === "Arribado"}
+          onClick={() => handleStatusFilterChange("Arribado")}
         />
       </div>
 
@@ -1912,7 +1945,7 @@ export function ClientHomeDashboard({
           </button>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
               {copy.etdFromLabel}
@@ -1920,25 +1953,8 @@ export function ClientHomeDashboard({
             <input
               type="date"
               value={etdFrom}
-              max={etdTo || undefined}
               onChange={(e) => {
                 setEtdFrom(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
-              {copy.etdToLabel}
-            </span>
-            <input
-              type="date"
-              value={etdTo}
-              min={etdFrom || undefined}
-              onChange={(e) => {
-                setEtdTo(e.target.value);
                 setCurrentPage(1);
               }}
               className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
@@ -1952,25 +1968,8 @@ export function ClientHomeDashboard({
             <input
               type="date"
               value={etaFrom}
-              max={etaTo || undefined}
               onChange={(e) => {
                 setEtaFrom(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
-              {copy.etaToLabel}
-            </span>
-            <input
-              type="date"
-              value={etaTo}
-              min={etaFrom || undefined}
-              onChange={(e) => {
-                setEtaTo(e.target.value);
                 setCurrentPage(1);
               }}
               className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
