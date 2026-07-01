@@ -68,11 +68,13 @@ jobs:
           app_port="4300"
           docker_network="observability"
           backend_url="http://192.168.6.190:1313"
+          app_public_url="http://192.168.1.144:${app_port}"
           echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
           echo "container_name=${APP_SLUG}" >> "$GITHUB_OUTPUT"
           echo "app_port=${app_port}" >> "$GITHUB_OUTPUT"
           echo "docker_network=${docker_network}" >> "$GITHUB_OUTPUT"
           echo "backend_url=${backend_url}" >> "$GITHUB_OUTPUT"
+          echo "app_public_url=${app_public_url}" >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR (runner local)
         shell: bash
@@ -84,6 +86,7 @@ jobs:
         env:
           APP_ENV_FILE: ${{ secrets.APP_ENV_FILE }}
           BACKEND_URL: ${{ steps.vars.outputs.backend_url }}
+          APP_PUBLIC_URL: ${{ steps.vars.outputs.app_public_url }}
         run: |
           set -e
           runtime_dir="${RUNNER_TEMP:-$HOME}/${APP_SLUG}"
@@ -99,6 +102,10 @@ jobs:
 
           if ! grep -q '^DOCUMENTS_API_BASE_URL=' "$env_file"; then
             printf 'DOCUMENTS_API_BASE_URL=%s\n' "$BACKEND_URL" >> "$env_file"
+          fi
+
+          if ! grep -q '^AUTH_PUBLIC_ORIGIN=' "$env_file" && ! grep -q '^APP_PUBLIC_URL=' "$env_file"; then
+            printf 'AUTH_PUBLIC_ORIGIN=%s\n' "$APP_PUBLIC_URL" >> "$env_file"
           fi
 
           echo "env_file=$env_file" >> "$GITHUB_OUTPUT"
