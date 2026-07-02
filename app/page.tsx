@@ -2,6 +2,7 @@ import {
   fetchContainerTrackingSnapshots,
   fetchEmbarqueRowsWithSeasonFallback,
   fetchEmbarqueSeasons,
+  isHiddenEmbarqueSeason,
   fetchVesselTrackingSnapshots,
   resolveDefaultEmbarqueSeasonCode,
 } from "@/lib/clickhouse";
@@ -20,9 +21,12 @@ async function loadDashboardRows() {
 
   try {
     const seasons = await fetchEmbarqueSeasons();
+    const configuredDefaultSeason = process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
     const defaultSeason =
       resolveDefaultEmbarqueSeasonCode(seasons) ??
-      process.env.CLICKHOUSE_DEFAULT_SEASON?.trim() ??
+      (configuredDefaultSeason && !isHiddenEmbarqueSeason(configuredDefaultSeason)
+        ? configuredDefaultSeason
+        : null) ??
       null;
     const rawRows = await fetchEmbarqueRowsWithSeasonFallback({
       season: defaultSeason,

@@ -6,6 +6,7 @@ import {
 import {
   fetchEmbarqueRowsWithSeasonFallback,
   fetchEmbarqueSeasons,
+  isHiddenEmbarqueSeason,
   resolveDefaultEmbarqueSeasonCode,
 } from "@/lib/clickhouse";
 
@@ -24,13 +25,20 @@ export async function GET(request: NextRequest) {
 
   const user = auth.user;
   const { searchParams } = request.nextUrl;
-  const season = searchParams.get("season")?.trim() || null;
+  const requestedSeason = searchParams.get("season")?.trim() || null;
+  const season =
+    requestedSeason && !isHiddenEmbarqueSeason(requestedSeason)
+      ? requestedSeason
+      : null;
   const search = searchParams.get("search") ?? undefined;
   const seasons = await fetchEmbarqueSeasons();
+  const configuredDefaultSeason = process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
   const resolvedSeason =
     season ??
     resolveDefaultEmbarqueSeasonCode(seasons) ??
-    process.env.CLICKHOUSE_DEFAULT_SEASON?.trim() ??
+    (configuredDefaultSeason && !isHiddenEmbarqueSeason(configuredDefaultSeason)
+      ? configuredDefaultSeason
+      : null) ??
     null;
 
   const rows = await fetchEmbarqueRowsWithSeasonFallback({

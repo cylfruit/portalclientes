@@ -663,6 +663,30 @@ function normalizeSeasonLabel(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
 
+function hasHiddenSeasonValue(value: string | null | undefined) {
+  const normalized = normalizeSeasonLabel(value ?? "").toUpperCase();
+
+  return (
+    normalized === "T6" ||
+    /\b2024\s*-\s*2025\b/.test(normalized) ||
+    /\bT\s*6\b/.test(normalized)
+  );
+}
+
+export function isHiddenEmbarqueSeason(
+  season: Pick<ShipmentSeasonOption, "code" | "description"> | string | null | undefined,
+) {
+  if (!season) {
+    return false;
+  }
+
+  if (typeof season === "string") {
+    return hasHiddenSeasonValue(season);
+  }
+
+  return hasHiddenSeasonValue(season.code) || hasHiddenSeasonValue(season.description);
+}
+
 function appendSeasonCandidate(
   candidates: string[],
   value: string | null | undefined,
@@ -1049,6 +1073,10 @@ async function executeClickHouseCommand(query: string) {
 }
 
 export async function fetchEmbarqueRows(options: ShipmentsQueryOptions = {}) {
+  if (options.season && isHiddenEmbarqueSeason(options.season)) {
+    return [];
+  }
+
   const payload = await executeClickHouseJsonQuery(
     buildShipmentsQuery(options),
   );
@@ -1122,7 +1150,10 @@ export async function fetchEmbarqueSeasons(): Promise<ShipmentSeasonOption[]> {
         isActive: toBoolean(row.Activo),
       };
     })
-    .filter((season): season is ShipmentSeasonOption => season !== null);
+    .filter(
+      (season): season is ShipmentSeasonOption =>
+        season !== null && !isHiddenEmbarqueSeason(season),
+    );
 }
 
 export async function fetchContainerTrackingSnapshots(
