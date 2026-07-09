@@ -26,6 +26,7 @@ import type {
 type TrackingMapProps = {
   items: TrackedShipmentItem[];
   locale: "es" | "en";
+  ariaLabel?: string;
   selectedShipmentId?: string | null;
   onSelectShipment?: (shipmentId: string) => void;
 };
@@ -75,6 +76,7 @@ const trackingMapCopy = {
 const TrackingMapComponent = ({
   items,
   locale,
+  ariaLabel,
   selectedShipmentId,
   onSelectShipment,
 }: TrackingMapProps) => {
@@ -181,7 +183,11 @@ const TrackingMapComponent = ({
   }, [hasSelection, preparedItems, selectedShipmentId]);
 
   return (
-    <div className="tracking-map-shell h-full w-full">
+    <div
+      className="tracking-map-shell h-full w-full"
+      role="region"
+      aria-label={ariaLabel}
+    >
       <MapContainer
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}

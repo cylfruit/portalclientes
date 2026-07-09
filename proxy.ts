@@ -6,7 +6,6 @@ import {
   readSessionTokenFromRequest,
   sanitizeNextPath,
   verifyPortalSessionToken,
-  normalizeOrigin,
 } from "@/lib/auth-session";
 import { SECURITY_HEADERS, getContentSecurityPolicy } from "@/lib/security-headers";
 
@@ -41,22 +40,6 @@ export async function proxy(request: NextRequest) {
       response.headers.set("Content-Security-Policy", getContentSecurityPolicy());
     }
     return response;
-  }
-
-  function isAllowedOrigin(origin: string | null): boolean {
-    if (!origin) return true;
-    const configuredOrigin =
-      normalizeOrigin(process.env.AUTH_PUBLIC_ORIGIN) ??
-      normalizeOrigin(process.env.APP_PUBLIC_URL);
-    if (configuredOrigin) {
-      return origin === configuredOrigin;
-    }
-    try {
-      const o = new URL(origin);
-      return o.hostname === "localhost" || o.hostname === "127.0.0.1";
-    } catch {
-      return false;
-    }
   }
 
   if (isStaticAsset(pathname)) {

@@ -3,8 +3,7 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
   "X-XSS-Protection": "0",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy":
-    "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Resource-Policy": "same-origin",
 };
@@ -14,9 +13,9 @@ export function getContentSecurityPolicy(nonce?: string): string {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'" + (nonce ? ` 'nonce-${nonce}'` : ""),
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
+    "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
     "font-src 'self' data:",
-    "connect-src 'self' http://localhost:1313 https://*.tile.openstreetmap.org",
+    "connect-src 'self' http://localhost:1313 https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

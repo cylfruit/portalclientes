@@ -119,12 +119,18 @@ const dashboardCopy = {
     docsReadySub: "Embarques ya arribados del cliente",
     searchPlaceholder: "Buscar por embarque, booking o contenedor...",
     searchingResults: "Buscando resultados...",
+    operationalErrorTitle: "Aviso operativo",
+    trackingWarningTitle: "Tracking parcial",
+    filtersRegionLabel: "Filtros de embarques",
+    searchLabel: "Buscar embarques",
     searchByLabel: "Buscar por",
+    searchFieldLabel: "Campo de busqueda",
     searchByAll: "Todos",
     searchByContainer: "Contenedor",
     searchByShipment: "Nro embarque",
     searchByBooking: "Booking",
     seasonLabel: "Temporada",
+    seasonSelectLabel: "Seleccionar temporada",
     etdFromLabel: "ETD desde",
     etdToLabel: "ETD hasta",
     etaFromLabel: "ETA desde",
@@ -185,6 +191,10 @@ const dashboardCopy = {
     exportBoxesLabel: "Cajas",
     exportStatusLabel: "Estado",
     trackingProgress: "Avance estimado",
+    trackingMapDescription:
+      "Mapa interactivo con rutas maritimas y posiciones aproximadas de contenedores. Usa los controles del mapa o selecciona un marcador para ver el embarque relacionado.",
+    showInTable: "Ver en tabla",
+    clearMapSelection: "Quitar seleccion del mapa",
     csvFilePrefix: "embarques-clientes",
     arrivedLabel: "Arribado",
     scheduledLabel: "Por zarpar",
@@ -192,6 +202,10 @@ const dashboardCopy = {
     originPort: "Puerto origen",
     destinationPort: "Puerto destino",
     pageOf: (page: number, total: number) => `Pág. ${page} de ${total}`,
+    summaryFilterLabel: (label: string, count: number, subtitle: string) =>
+      `${label}: ${formatNumber(count)}. ${subtitle}`,
+    toggleDetailsFor: (shipmentId: string) =>
+      `Mostrar u ocultar detalle del embarque ${shipmentId}`,
   },
   en: {
     inTransit: "IN TRANSIT",
@@ -202,12 +216,18 @@ const dashboardCopy = {
     docsReadySub: "Client shipments already arrived",
     searchPlaceholder: "Search by shipment, booking or container...",
     searchingResults: "Searching results...",
+    operationalErrorTitle: "Operational notice",
+    trackingWarningTitle: "Partial tracking",
+    filtersRegionLabel: "Shipment filters",
+    searchLabel: "Search shipments",
     searchByLabel: "Search by",
+    searchFieldLabel: "Search field",
     searchByAll: "All",
     searchByContainer: "Container",
     searchByShipment: "Shipment no.",
     searchByBooking: "Booking",
     seasonLabel: "Season",
+    seasonSelectLabel: "Select season",
     etdFromLabel: "ETD from",
     etdToLabel: "ETD to",
     etaFromLabel: "ETA from",
@@ -268,6 +288,10 @@ const dashboardCopy = {
     exportBoxesLabel: "Boxes",
     exportStatusLabel: "Status",
     trackingProgress: "Estimated progress",
+    trackingMapDescription:
+      "Interactive map with ocean routes and approximate container positions. Use the map controls or select a marker to inspect the related shipment.",
+    showInTable: "Show in table",
+    clearMapSelection: "Clear map selection",
     csvFilePrefix: "client-shipments",
     arrivedLabel: "Arrived",
     scheduledLabel: "Scheduled",
@@ -275,6 +299,10 @@ const dashboardCopy = {
     originPort: "Origin port",
     destinationPort: "Destination port",
     pageOf: (page: number, total: number) => `Pg. ${page} of ${total}`,
+    summaryFilterLabel: (label: string, count: number, subtitle: string) =>
+      `${label}: ${formatNumber(count)}. ${subtitle}`,
+    toggleDetailsFor: (shipmentId: string) =>
+      `Show or hide details for shipment ${shipmentId}`,
   },
 } as const;
 
@@ -329,30 +357,8 @@ function matchesDateRange(
   return true;
 }
 
-function getTodayComparableDate() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  const day = `${now.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function shouldRenderShipmentInMap(
-  shipment: ShipmentSummary,
-  todayComparableDate: string,
-) {
-  if (shipment.status === "Arribado") {
-    return false;
-  }
-
-  const etaOrAtaDate =
-    extractComparableDate(shipment.ata) ?? extractComparableDate(shipment.eta);
-
-  if (!etaOrAtaDate) {
-    return true;
-  }
-
-  return etaOrAtaDate >= todayComparableDate;
+function shouldRenderShipmentInMap(shipment: ShipmentSummary) {
+  return shipment.status !== "Arribado";
 }
 
 function normalizeSeasonFilterValue(value: string | null | undefined) {
@@ -639,6 +645,7 @@ function downloadShipmentsAsCsv(
 function SearchIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -680,6 +687,7 @@ function SpinnerIcon({ className = "h-4 w-4" }: { className?: string }) {
 function ChevronDownIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
@@ -694,6 +702,7 @@ function ChevronDownIcon() {
 function ChevronUpIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
@@ -708,6 +717,7 @@ function ChevronUpIcon() {
 function DownloadIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -724,6 +734,7 @@ function DownloadIcon() {
 function EyeIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -738,7 +749,12 @@ function EyeIcon() {
 
 function SparkleIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className="h-3.5 w-3.5"
+    >
       <path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" />
     </svg>
   );
@@ -747,6 +763,7 @@ function SparkleIcon() {
 function CloseIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -761,6 +778,7 @@ function CloseIcon() {
 function ChevronLeftIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -775,6 +793,7 @@ function ChevronLeftIcon() {
 function ChevronRightIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -789,6 +808,7 @@ function ChevronRightIcon() {
 function MapPinIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -804,6 +824,7 @@ function MapPinIcon() {
 function FileIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -824,6 +845,7 @@ function SummaryCard({
   count,
   subtitle,
   accentClass,
+  ariaLabel,
   isActive,
   onClick,
 }: {
@@ -831,6 +853,7 @@ function SummaryCard({
   count: number;
   subtitle: string;
   accentClass: string;
+  ariaLabel: string;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -839,6 +862,7 @@ function SummaryCard({
       type="button"
       onClick={onClick}
       aria-pressed={isActive}
+      aria-label={ariaLabel}
       className={`rounded-[1.6rem] border bg-white p-6 text-left shadow-[0_16px_40px_rgba(13,13,13,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_46px_rgba(13,13,13,0.14)] ${
         isActive
           ? "border-cyl-gold ring-2 ring-cyl-gold/45"
@@ -1264,6 +1288,11 @@ function TrackingTimeline({
           <div className="h-1.5 rounded-full bg-slate-200">
             <div
               className="h-1.5 rounded-full bg-sky-500"
+              role="progressbar"
+              aria-label={copy.trackingProgress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(displayProgress)}
               style={{
                 width: `${displayProgress}%`,
               }}
@@ -1420,6 +1449,8 @@ export function ClientHomeDashboard({
   vesselTrackingSnapshots,
   seasons: initialSeasons,
   defaultSeason,
+  errorMessage,
+  trackingErrorMessage,
 }: ClientHomeDashboardProps) {
   const copy = dashboardCopy[locale];
 
@@ -1501,13 +1532,12 @@ export function ClientHomeDashboard({
     () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
     [filteredShipments],
   );
-  const todayComparableDate = useMemo(() => getTodayComparableDate(), []);
   const mapEligibleShipments = useMemo(
     () =>
       filteredShipments.filter((shipment) =>
-        shouldRenderShipmentInMap(shipment, todayComparableDate),
+        shouldRenderShipmentInMap(shipment),
       ),
-    [filteredShipments, todayComparableDate],
+    [filteredShipments],
   );
   const mapEligibleShipmentKeys = useMemo(
     () => new Set(mapEligibleShipments.map((shipment) => shipment.groupKey)),
@@ -1800,6 +1830,27 @@ export function ClientHomeDashboard({
 
   return (
     <div className="space-y-6">
+      {errorMessage ? (
+        <div
+          role="alert"
+          className="dashboard-enter rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-950 shadow-[0_14px_32px_rgba(146,64,14,0.08)]"
+        >
+          <p className="font-bold">{copy.operationalErrorTitle}</p>
+          <p className="mt-1 leading-6">{errorMessage}</p>
+        </div>
+      ) : null}
+
+      {trackingErrorMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="dashboard-enter rounded-[1.4rem] border border-sky-200 bg-sky-50/95 px-5 py-4 text-sm text-sky-950 shadow-[0_14px_32px_rgba(14,116,144,0.08)]"
+        >
+          <p className="font-bold">{copy.trackingWarningTitle}</p>
+          <p className="mt-1 leading-6">{trackingErrorMessage}</p>
+        </div>
+      ) : null}
+
       {/* ── Summary cards ─────────────────────────────────────────────────── */}
       <div className="dashboard-enter grid gap-4 sm:grid-cols-3">
         <SummaryCard
@@ -1807,6 +1858,11 @@ export function ClientHomeDashboard({
           count={arrivingSoonCount}
           subtitle={copy.arrivingSoonSub}
           accentClass="text-amber-600"
+          ariaLabel={copy.summaryFilterLabel(
+            copy.arrivingSoon,
+            arrivingSoonCount,
+            copy.arrivingSoonSub,
+          )}
           isActive={statusFilter === "Programado"}
           onClick={() => handleStatusFilterChange("Programado")}
         />
@@ -1815,6 +1871,11 @@ export function ClientHomeDashboard({
           count={inTransitCount}
           subtitle={copy.inTransitSub}
           accentClass="text-sky-600"
+          ariaLabel={copy.summaryFilterLabel(
+            copy.inTransit,
+            inTransitCount,
+            copy.inTransitSub,
+          )}
           isActive={statusFilter === "En transito"}
           onClick={() => handleStatusFilterChange("En transito")}
         />
@@ -1823,6 +1884,11 @@ export function ClientHomeDashboard({
           count={docsReadyCount}
           subtitle={copy.docsReadySub}
           accentClass="text-emerald-600"
+          ariaLabel={copy.summaryFilterLabel(
+            copy.docsReady,
+            docsReadyCount,
+            copy.docsReadySub,
+          )}
           isActive={statusFilter === "Arribado"}
           onClick={() => handleStatusFilterChange("Arribado")}
         />
@@ -1830,6 +1896,8 @@ export function ClientHomeDashboard({
 
       {/* ── Búsqueda y filtros ─────────────────────────────────────────────── */}
       <div
+        role="search"
+        aria-label={copy.filtersRegionLabel}
         aria-busy={isLoadingSeason || isSearchSettling}
         className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-black/8 bg-white/88 px-4 py-4 text-cyl-ink shadow-[0_18px_44px_rgba(17,11,2,0.12)] backdrop-blur-sm sm:px-5 lg:border-white/10 lg:bg-white/6 lg:text-white lg:shadow-[0_16px_40px_rgba(0,0,0,0.12)] ${
           isLoadingSeason || isSearchSettling ? "is-busy" : ""
@@ -1837,6 +1905,9 @@ export function ClientHomeDashboard({
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.6fr)_220px_220px_auto_auto] xl:items-end">
           <div className="relative sm:col-span-2 lg:col-span-1 xl:col-span-1">
+            <label htmlFor="shipment-search" className="sr-only">
+              {copy.searchLabel}
+            </label>
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
               {isSearchSettling ? (
                 <SpinnerIcon className="h-4 w-4" />
@@ -1845,6 +1916,7 @@ export function ClientHomeDashboard({
               )}
             </span>
             <input
+              id="shipment-search"
               type="text"
               value={searchQuery}
               onChange={(e) => {
@@ -1857,7 +1929,11 @@ export function ClientHomeDashboard({
           </div>
 
           <div className="relative">
+            <label htmlFor="shipment-search-field" className="sr-only">
+              {copy.searchFieldLabel}
+            </label>
             <select
+              id="shipment-search-field"
               value={searchField}
               onChange={(e) => {
                 setSearchField(e.target.value as SearchField);
@@ -1884,7 +1960,11 @@ export function ClientHomeDashboard({
           </div>
 
           <div className="relative">
+            <label htmlFor="shipment-season" className="sr-only">
+              {copy.seasonSelectLabel}
+            </label>
             <select
+              id="shipment-season"
               value={selectedSeason}
               onChange={(e) => void handleSeasonChange(e.target.value)}
               disabled={isLoadingSeason}
@@ -1998,13 +2078,17 @@ export function ClientHomeDashboard({
       {/* ── Mapa de seguimiento ────────────────────────────────────────────── */}
       {trackedItems.length > 0 ? (
         <section
+          aria-labelledby="tracking-map-heading"
           aria-busy={isSearchSettling}
           className={`dashboard-enter dashboard-enter-delay-2 dashboard-live-region ${
             isSearchSettling ? "is-busy" : ""
           }`}
         >
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">
+            <h2
+              id="tracking-map-heading"
+              className="text-lg font-semibold text-white"
+            >
               {copy.trackingTitle}
             </h2>
             <span className="text-xs text-white/55">
@@ -2014,13 +2098,19 @@ export function ClientHomeDashboard({
                 : "container(s) with live position"}
             </span>
           </div>
+          <p id="tracking-map-description" className="sr-only">
+            {copy.trackingMapDescription} {trackedItems.length}{" "}
+            {locale === "es" ? "embarques disponibles." : "available shipments."}
+          </p>
           <div
+            aria-describedby="tracking-map-description"
             className="overflow-hidden rounded-3xl shadow-[0_20px_48px_rgba(0,0,0,0.22)]"
             style={{ height: "420px" }}
           >
             <TrackingMap
               items={trackedItems}
               locale={locale}
+              ariaLabel={copy.trackingMapDescription}
               selectedShipmentId={mapSelectedKey}
               onSelectShipment={handleMapSelection}
             />
@@ -2062,8 +2152,8 @@ export function ClientHomeDashboard({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-4 text-xs text-white/70">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-4 text-xs text-white/70">
                         <span>
                           <span className="text-white/45">
                             {copy.etdLabel}:{" "}
@@ -2084,9 +2174,9 @@ export function ClientHomeDashboard({
                             {Math.round(selectedMapProgress)}%
                           </span>
                         ) : null}
-                      </div>
-                      <button
-                        type="button"
+                        </div>
+                        <button
+                          type="button"
                         onClick={() => {
                           const idx = filteredShipments.findIndex(
                             (shipment) =>
@@ -2104,11 +2194,12 @@ export function ClientHomeDashboard({
                         className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
                       >
                         <ChevronDownIcon />
-                        {locale === "es" ? "Ver en tabla" : "Show in table"}
+                        {copy.showInTable}
                       </button>
                       <button
                         type="button"
                         onClick={() => setMapSelectedKey(null)}
+                        aria-label={copy.clearMapSelection}
                         className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/16"
                       >
                         <CloseIcon />
@@ -2127,13 +2218,17 @@ export function ClientHomeDashboard({
       {/* ── Tabla de embarques ─────────────────────────────────────────────── */}
       <section
         id="embarques"
+        aria-labelledby="shipments-table-heading"
         aria-busy={isSearchSettling}
         className={`dashboard-enter dashboard-enter-delay-3 dashboard-live-region ${
           isSearchSettling ? "is-busy" : ""
         }`}
       >
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-white">
+          <h2
+            id="shipments-table-heading"
+            className="text-2xl font-semibold text-white"
+          >
             {copy.misEmbarques}
           </h2>
           {totalPages > 1 ? (
@@ -2156,6 +2251,10 @@ export function ClientHomeDashboard({
           <>
             <div className="table-shell">
               <table className="min-w-full text-sm">
+                <caption className="sr-only">
+                  {filteredShipments.length} {copy.shipmentsShowing}.{" "}
+                  {copy.misEmbarques}
+                </caption>
                 <thead>
                   <tr className="border-b border-black/8">
                     <th
@@ -2254,6 +2353,9 @@ export function ClientHomeDashboard({
                             <button
                               type="button"
                               onClick={() => toggleRow(shipment)}
+                              aria-expanded={isExpanded}
+                              aria-controls={`details-${shipment.groupKey}`}
+                              aria-label={copy.toggleDetailsFor(shipment.id)}
                               className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition ${
                                 isExpanded
                                   ? "bg-[#111827] text-white hover:bg-[#1f2937]"
@@ -2276,7 +2378,10 @@ export function ClientHomeDashboard({
                         </tr>
 
                         {isExpanded ? (
-                          <tr className="docs-expansion">
+                          <tr
+                            id={`details-${shipment.groupKey}`}
+                            className="docs-expansion"
+                          >
                             <td colSpan={5} className="p-0">
                               <ShipmentExpandedRow
                                 shipment={shipment}

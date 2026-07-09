@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -8,6 +9,15 @@ import {
 import { sanitizeNextPath } from "@/lib/auth-session";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Acceso al portal",
+  description:
+    "Ingresa al portal privado de C&L Fruit para revisar embarques, tracking maritimo y documentos de exportacion.",
+  alternates: {
+    canonical: "/login",
+  },
+};
 
 type LoginLocale = "es" | "en";
 
@@ -136,7 +146,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       </div>
 
       <div className="relative mx-auto grid min-h-screen max-w-screen-2xl gap-10 px-4 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8">
-        <section className="max-w-2xl space-y-6">
+        <section className="max-w-2xl space-y-6" aria-labelledby="login-title">
           <div className="flex items-center gap-4">
             <Image
               src="/brand/logocyl.png"
@@ -149,7 +159,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyl-gold-soft/72">
                 {copy.brandKicker}
               </p>
-              <h1 className="portal-display mt-2 text-5xl leading-none text-white sm:text-6xl lg:text-7xl">
+              <h1
+                id="login-title"
+                className="portal-display mt-2 text-5xl leading-none text-white sm:text-6xl lg:text-7xl"
+              >
                 {copy.heroTitle}
               </h1>
             </div>
@@ -172,9 +185,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </div>
         </section>
 
-        <section className="panel mx-auto w-full max-w-xl p-6 text-cyl-ink sm:p-8">
+        <section
+          className="panel mx-auto w-full max-w-xl p-6 text-cyl-ink sm:p-8"
+          aria-labelledby="login-form-title"
+        >
           <p className="section-kicker text-cyl-gold">{copy.formKicker}</p>
-          <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
+          <h2
+            id="login-form-title"
+            className="mt-3 text-3xl font-semibold text-cyl-ink"
+          >
             {copy.formTitle}
           </h2>
           <p className="mt-2 text-sm leading-6 text-cyl-ink/70">
@@ -182,13 +201,20 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
 
           {errorMessage ? (
-            <div className="mt-5 rounded-[1.15rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <div
+              role="alert"
+              className="mt-5 rounded-[1.15rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+            >
               {errorMessage}
             </div>
           ) : null}
 
           {logoutMessage ? (
-            <div className="mt-5 rounded-[1.15rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <div
+              role="status"
+              aria-live="polite"
+              className="mt-5 rounded-[1.15rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+            >
               {logoutMessage}
             </div>
           ) : null}

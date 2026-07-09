@@ -21,6 +21,11 @@ const shellCopy = {
     brandTitle: "Portal de Clientes",
     brandKicker: "Portal cliente C&L",
     authenticatedClient: "Cliente autenticado",
+    skipToContent: "Saltar al contenido principal",
+    mainNavigation: "Navegacion principal",
+    mobileNavigation: "Navegacion movil",
+    openNavigation: "Abrir navegacion",
+    closeNavigation: "Cerrar navegacion",
     users: "Usuarios",
     logout: "Salir",
     footerDescription:
@@ -39,6 +44,11 @@ const shellCopy = {
     brandTitle: "Client Portal",
     brandKicker: "C&L client portal",
     authenticatedClient: "Authenticated client",
+    skipToContent: "Skip to main content",
+    mainNavigation: "Main navigation",
+    mobileNavigation: "Mobile navigation",
+    openNavigation: "Open navigation",
+    closeNavigation: "Close navigation",
     users: "Users",
     logout: "Sign out",
     footerDescription:
@@ -79,6 +89,13 @@ export async function PortalShell({
 
   return (
     <div className="portal-shell-root min-h-screen text-cyl-paper">
+      <a
+        href="#main-content"
+        className="sr-only fixed left-4 top-4 z-[120] rounded-full bg-cyl-gold px-5 py-3 text-sm font-bold text-cyl-black shadow-xl focus:not-sr-only"
+      >
+        {copy.skipToContent}
+      </a>
+
       <header className="sticky top-0 z-40 border-b border-cyl-gold/70 bg-black/88 shadow-[0_18px_48px_rgba(0,0,0,0.32)] backdrop-blur-xl">
         <div className="relative overflow-hidden">
           <div className="absolute inset-0">
@@ -116,9 +133,12 @@ export async function PortalShell({
                   id="portal-nav-toggle"
                   type="button"
                   className="ml-auto inline-flex items-center justify-center rounded-2xl border border-white/14 bg-white/8 p-2.5 text-white transition hover:bg-white/14 lg:hidden"
-                  aria-label="Toggle navigation"
+                  aria-controls="portal-nav-overlay"
+                  aria-expanded="false"
+                  aria-label={copy.openNavigation}
                 >
                   <svg
+                    aria-hidden="true"
                     className="h-5 w-5"
                     fill="none"
                     stroke="currentColor"
@@ -133,7 +153,10 @@ export async function PortalShell({
                   </svg>
                 </button>
 
-                <nav className="hidden flex-1 items-center justify-center gap-1 lg:flex">
+                <nav
+                  aria-label={copy.mainNavigation}
+                  className="hidden flex-1 items-center justify-center gap-1 lg:flex"
+                >
                   {visibleNavigation.map((item) => {
                     const isActive = item.key === activeKey;
 
@@ -229,27 +252,46 @@ export async function PortalShell({
         </div>
       </section>
 
-      <main className="portal-main relative mx-auto max-w-screen-2xl space-y-8 px-4 py-8 lg:px-8 lg:py-10">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="portal-main relative mx-auto max-w-screen-2xl space-y-8 px-4 py-8 lg:px-8 lg:py-10"
+      >
         {children}
       </main>
 
       {/* Mobile nav overlay (root level to avoid z-index stacking issues) */}
-      <div id="portal-nav-overlay" className="fixed inset-0 z-100 hidden">
+      <div
+        id="portal-nav-overlay"
+        className="fixed inset-0 z-100 hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-hidden="true"
+        aria-labelledby="portal-nav-title"
+      >
         <div
           className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           id="portal-nav-backdrop"
         ></div>
-        <div className="absolute right-0 top-0 h-full w-72 bg-[#1d1d1d] border-l border-white/10 shadow-2xl p-6 translate-x-full transition-transform duration-300">
+        <div
+          id="portal-nav-drawer"
+          className="absolute right-0 top-0 h-full w-72 bg-[#1d1d1d] border-l border-white/10 shadow-2xl p-6 translate-x-full transition-transform duration-300"
+        >
           <div className="flex items-center justify-between mb-8">
-            <span className="text-sm font-semibold text-white/70">
-              Navegación
+            <span
+              id="portal-nav-title"
+              className="text-sm font-semibold text-white/70"
+            >
+              {copy.mobileNavigation}
             </span>
             <button
               id="portal-nav-close"
               type="button"
               className="rounded-full border border-white/14 bg-white/8 p-2 text-white hover:bg-white/14"
+              aria-label={copy.closeNavigation}
             >
               <svg
+                aria-hidden="true"
                 className="h-4 w-4"
                 fill="none"
                 stroke="currentColor"
@@ -264,7 +306,7 @@ export async function PortalShell({
               </svg>
             </button>
           </div>
-          <nav className="flex flex-col gap-2">
+          <nav aria-label={copy.mobileNavigation} className="flex flex-col gap-2">
             {visibleNavigation.map((item) => {
               const isActive = item.key === activeKey;
               return (
@@ -343,6 +385,7 @@ export async function PortalShell({
 function UsersIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
@@ -360,6 +403,7 @@ function UsersIcon() {
 function UserIcon() {
   return (
     <svg
+      aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"

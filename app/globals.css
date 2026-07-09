@@ -51,6 +51,12 @@ html {
   scroll-behavior: smooth;
 }
 
+:target,
+:focus {
+  scroll-margin-top: 7rem;
+  scroll-margin-bottom: 2rem;
+}
+
 body {
   min-height: 100vh;
   background:
@@ -73,6 +79,11 @@ a {
 :focus-visible {
   outline: 3px solid rgba(242, 198, 92, 0.7);
   outline-offset: 3px;
+}
+
+.leaflet-container :focus-visible {
+  outline: 3px solid rgba(17, 24, 39, 0.9);
+  outline-offset: 2px;
 }
 
 * {

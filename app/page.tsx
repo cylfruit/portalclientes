@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   fetchContainerTrackingSnapshots,
   fetchEmbarqueRowsWithSeasonFallback,
@@ -14,6 +15,16 @@ import { ClientHomeDashboard } from "@/components/client-home-dashboard";
 import { PortalShell } from "@/components/portal-shell";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Embarques",
+  description:
+    "Dashboard privado para revisar embarques, tracking maritimo, documentos y fechas clave del viaje.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 async function loadDashboardRows() {
   const currentUser = await requireAuthenticatedPortalUser("/");
@@ -68,7 +79,10 @@ async function loadDashboardRows() {
       }
 
       if (vesselTrackingResult.status === "fulfilled") {
-        vesselTrackingSnapshots = vesselTrackingResult.value;
+        vesselTrackingSnapshots = vesselTrackingResult.value.map((snapshot) => ({
+          ...snapshot,
+          containerNumber: "vessel-position",
+        }));
       }
 
       if (

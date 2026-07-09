@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { readCsrfTokenFromCookies, requireAdminPortalUser } from "@/lib/auth";
 import { PortalUsersAdmin } from "@/components/portal-users-admin";
 import { PortalShell } from "@/components/portal-shell";
@@ -12,6 +13,16 @@ import {
 } from "@/lib/portal-data";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Gestion de accesos",
+  description:
+    "Administracion privada de usuarios, perfiles y accesos para clientes y recibidores C&L Fruit.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 async function loadPortalUsers() {
   try {

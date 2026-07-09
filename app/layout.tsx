@@ -1,11 +1,52 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import { getPublicSiteUrl } from "@/lib/site-url";
+
+const siteName = "Portal Clientes C&L Fruit";
 
 export const metadata: Metadata = {
-  title: "Portal Clientes | C&L Fruit",
+  metadataBase: getPublicSiteUrl() ?? undefined,
+  applicationName: siteName,
+  title: {
+    default: "Portal Clientes | C&L Fruit",
+    template: "%s | C&L Fruit",
+  },
   description:
-    "Portal de clientes C&L Fruit para recibidores con embarques, pallets, documentos y gestion de accesos.",
+    "Portal privado de clientes C&L Fruit para revisar embarques, tracking maritimo, documentos y gestion de accesos.",
+  keywords: [
+    "C&L Fruit",
+    "portal clientes",
+    "embarques de fruta",
+    "tracking maritimo",
+    "documentos de exportacion",
+  ],
+  openGraph: {
+    type: "website",
+    siteName,
+    title: "Portal Clientes | C&L Fruit",
+    description:
+      "Acceso privado para seguimiento de embarques, documentos y trazabilidad operativa de C&L Fruit.",
+    images: [
+      {
+        url: "/brand/bg_login.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Portal Clientes C&L Fruit",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Portal Clientes | C&L Fruit",
+    description:
+      "Acceso privado para seguimiento de embarques, documentos y trazabilidad operativa de C&L Fruit.",
+    images: ["/brand/bg_login.jpg"],
+  },
+  icons: {
+    icon: "/brand/logocyl.png",
+    apple: "/brand/logocyl.png",
+  },
 };
 
 export default function RootLayout({

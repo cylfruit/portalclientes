@@ -496,13 +496,20 @@ export function PortalUsersAdmin({
   return (
     <div className="space-y-8">
       {errorMessage ? (
-        <div className="rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-900 shadow-[0_14px_32px_rgba(146,64,14,0.08)]">
+        <div
+          role="alert"
+          className="rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-900 shadow-[0_14px_32px_rgba(146,64,14,0.08)]"
+        >
           {errorMessage}
         </div>
       ) : null}
 
       {successMessage ? (
-        <div className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50/95 px-5 py-4 text-sm text-emerald-900 shadow-[0_14px_32px_rgba(6,95,70,0.08)]">
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50/95 px-5 py-4 text-sm text-emerald-900 shadow-[0_14px_32px_rgba(6,95,70,0.08)]"
+        >
           {successMessage}
         </div>
       ) : null}
@@ -581,7 +588,10 @@ export function PortalUsersAdmin({
           </div>
 
           {formError ? (
-            <div className="mt-6 rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <div
+              role="alert"
+              className="mt-6 rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+            >
               {formError}
             </div>
           ) : null}
