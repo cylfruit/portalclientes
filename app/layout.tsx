@@ -4,6 +4,19 @@ import "./globals.css";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 const siteName = "Portal Clientes C&L Fruit";
+const themeInitScript = `
+(function () {
+  try {
+    if (localStorage.getItem('cyl-theme') === 'light') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  } catch (_) {
+    document.documentElement.dataset.theme = 'dark';
+  }
+})();
+`;
 
 export const metadata: Metadata = {
   metadataBase: getPublicSiteUrl() ?? undefined,
@@ -58,8 +71,13 @@ export default function RootLayout({
     <html
       lang="es"
       className="h-full scroll-smooth antialiased"
+      data-theme="dark"
       data-scroll-behavior="smooth"
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-full bg-background text-foreground">
         {children}
       </body>

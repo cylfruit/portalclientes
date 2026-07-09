@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, useMemo, useEffect } from "react";
+import { Fragment, memo, useMemo, useEffect, useState } from "react";
 import {
   divIcon,
   latLngBounds,
@@ -40,6 +40,10 @@ type PreparedTrackedItem = {
 
 const DEFAULT_CENTER: [number, number] = [2.5, -35];
 const DEFAULT_ZOOM = 2;
+const CARTO_LIGHT_TILES =
+  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+const CARTO_DARK_TILES =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const WORLD_BOUNDS: LatLngBoundsExpression = [
   [-75, -180],
   [85, 180],
@@ -81,6 +85,8 @@ const TrackingMapComponent = ({
   onSelectShipment,
 }: TrackingMapProps) => {
   const copy = trackingMapCopy[locale];
+  const theme = useDocumentTheme();
+  const tileUrl = theme === "dark" ? CARTO_DARK_TILES : CARTO_LIGHT_TILES;
   const preparedItems = useMemo<PreparedTrackedItem[]>(() => {
     return items.map((item) => ({
       item,
@@ -204,8 +210,9 @@ const TrackingMapComponent = ({
         className="h-full w-full"
       >
         <TileLayer
+          key={tileUrl}
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url={tileUrl}
         />
         <FitTrackingBounds positions={boundsPositions} />
 
@@ -371,6 +378,34 @@ const TrackingMapComponent = ({
 export const TrackingMap = memo(TrackingMapComponent);
 
 TrackingMap.displayName = "TrackingMap";
+
+function useDocumentTheme() {
+  const [theme, setTheme] = useMemoizedTheme();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const syncTheme = () => {
+      setTheme(root.dataset.theme === "dark" ? "dark" : "light");
+    };
+    const observer = new MutationObserver(syncTheme);
+
+    syncTheme();
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return () => observer.disconnect();
+  }, [setTheme]);
+
+  return theme;
+}
+
+function useMemoizedTheme() {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  return [theme, setTheme] as const;
+}
 
 function FitTrackingBounds({ positions }: { positions: LatLngExpression[] }) {
   const map = useMap();

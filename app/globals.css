@@ -17,24 +17,152 @@
 }
 
 :root {
-  --background: #fbf8ef;
-  --foreground: #181511;
-  --cyl-black: #0d0d0d;
-  --cyl-graphite: #191919;
-  --cyl-ink: #211c14;
-  --cyl-paper: #fbf8ef;
-  --cyl-paper-strong: #f6efdf;
-  --cyl-gold: #f2c65c;
-  --cyl-gold-soft: #f6e0a6;
-  --cyl-line: rgba(33, 28, 20, 0.1);
-  --cyl-muted: #6d6255;
-  --cyl-shadow: 0 24px 58px rgba(17, 11, 2, 0.1);
-  --cyl-shadow-soft: 0 14px 34px rgba(17, 11, 2, 0.08);
+  color-scheme: light;
+
+  /* Marca CYL compartida entre temas. */
+  --cyl-brand: #f2c65c;
+  --cyl-brand-light: #fff3c2;
+  --cyl-brand-soft: #fff8d5;
+  --cyl-green-olive: #68813b;
+  --cyl-green-lime: #989400;
+
+  /* Modo claro. */
+  --cyl-bg: #fbf8ef;
+  --cyl-surface: #ffffff;
+  --cyl-surface-alt: #f7f4ec;
+  --cyl-card: #ffffff;
+  --cyl-border: #e8e2d4;
+  --cyl-text: #000000;
+  --cyl-text-secondary: #4a4640;
+  --cyl-text-placeholder: #8a857f;
+  --cyl-text-disabled: #b1aca6;
+  --cyl-action: #d4a937;
+  --cyl-action-hover: #c09428;
+  --cyl-action-pressed: #a97f16;
+  --cyl-success: #68813b;
+  --cyl-success-bg: #eef2e8;
+  --cyl-warning-bg: #fff3c2;
+  --cyl-warning-text: #a97f16;
+  --cyl-error-bg: #fdeaea;
+  --cyl-error-text: #c62828;
+  --cyl-info-bg: #eaf3ff;
+  --cyl-info-text: #1565c0;
+
+  --cyl-neutral-900: #000000;
+  --cyl-neutral-800: #2f2c27;
+  --cyl-neutral-700: #4a4640;
+  --cyl-neutral-600: #67625c;
+  --cyl-neutral-500: #8a857f;
+  --cyl-neutral-400: #b1aca6;
+  --cyl-neutral-300: #d6d1ca;
+  --cyl-neutral-200: #e9e5de;
+  --cyl-neutral-100: #f4f1ea;
+
+  --cyl-header-bg: rgba(251, 248, 239, 0.92);
+  --cyl-gradient-corporate: linear-gradient(135deg, #fff8d5, #f2c65c);
+  --cyl-line: rgba(0, 0, 0, 0.1);
+  --cyl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --cyl-shadow-base: 0 8px 20px rgba(0, 0, 0, 0.08);
+  --cyl-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.12);
+  --cyl-shell-from: #fdfaf2;
+  --cyl-shell-via: #f7f4ec;
+  --cyl-shell-to: #fbf8ef;
+  --cyl-body-glow: rgba(242, 198, 92, 0.2);
+  --cyl-body-shade: rgba(104, 129, 59, 0.1);
+  --cyl-map-bg-from: #eef4f0;
+  --cyl-map-bg-to: #d8e3dc;
+
+  /* Alias legacy usados por componentes existentes. */
+  --background: var(--cyl-bg);
+  --foreground: var(--cyl-text);
+  --cyl-black: #000000;
+  --cyl-graphite: var(--cyl-neutral-800);
+  --cyl-ink: var(--cyl-text);
+  --cyl-paper: var(--cyl-bg);
+  --cyl-paper-strong: var(--cyl-surface-alt);
+  --cyl-gold: var(--cyl-brand);
+  --cyl-gold-soft: var(--cyl-brand-light);
+  --cyl-gold-dark: var(--cyl-action);
+  --cyl-green: var(--cyl-green-olive);
+  --cyl-muted: var(--cyl-text-secondary);
+  --cyl-shadow: var(--cyl-shadow-lg);
+  --cyl-shadow-soft: var(--cyl-shadow-base);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --cyl-bg: #12110e;
+  --cyl-surface: #1c1a17;
+  --cyl-surface-alt: #252219;
+  --cyl-card: #1c1a17;
+  --cyl-border: #3a3630;
+  --cyl-brand-soft: #3d3520;
+  --cyl-brand-light: #4d4228;
+  --cyl-text: #f5f2ea;
+  --cyl-text-secondary: #c9c3b8;
+  --cyl-text-placeholder: #8a8378;
+  --cyl-text-disabled: #6b655c;
+  --cyl-action: #c9a030;
+  --cyl-action-hover: #dbae38;
+  --cyl-action-pressed: #b89228;
+  --cyl-success-bg: #2a3320;
+  --cyl-warning-bg: #3d3520;
+  --cyl-warning-text: #e8c45a;
+  --cyl-error-bg: #3d2020;
+  --cyl-error-text: #f48a8a;
+  --cyl-info-bg: #17283a;
+  --cyl-info-text: #8fc7ff;
+
+  --cyl-neutral-900: #f5f2ea;
+  --cyl-neutral-800: #e5e0d6;
+  --cyl-neutral-700: #c9c3b8;
+  --cyl-neutral-600: #a8a195;
+  --cyl-neutral-500: #8a8378;
+  --cyl-neutral-400: #6b655c;
+  --cyl-neutral-300: #4a4640;
+  --cyl-neutral-200: #35322d;
+  --cyl-neutral-100: #2a2723;
+
+  --cyl-header-bg: rgba(18, 17, 14, 0.88);
+  --cyl-gradient-corporate: linear-gradient(135deg, #3d3520, #8a7128);
+  --cyl-line: rgba(255, 255, 255, 0.08);
+  --cyl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --cyl-shadow-base: 0 8px 20px rgba(0, 0, 0, 0.4);
+  --cyl-shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --cyl-shell-from: #12110e;
+  --cyl-shell-via: #1c1a17;
+  --cyl-shell-to: #252219;
+  --cyl-body-glow: rgba(242, 198, 92, 0.11);
+  --cyl-body-shade: rgba(0, 0, 0, 0.22);
+  --cyl-map-bg-from: #1c1a17;
+  --cyl-map-bg-to: #252219;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-cyl-bg: var(--cyl-bg);
+  --color-cyl-surface: var(--cyl-surface);
+  --color-cyl-surface-alt: var(--cyl-surface-alt);
+  --color-cyl-card: var(--cyl-card);
+  --color-cyl-border: var(--cyl-border);
+  --color-cyl-text: var(--cyl-text);
+  --color-cyl-text-secondary: var(--cyl-text-secondary);
+  --color-cyl-action: var(--cyl-action);
+  --color-cyl-action-hover: var(--cyl-action-hover);
+  --color-cyl-success: var(--cyl-success);
+  --color-cyl-success-bg: var(--cyl-success-bg);
+  --color-cyl-warning-bg: var(--cyl-warning-bg);
+  --color-cyl-warning-text: var(--cyl-warning-text);
+  --color-cyl-error-bg: var(--cyl-error-bg);
+  --color-cyl-error-text: var(--cyl-error-text);
+  --color-cyl-info-bg: var(--cyl-info-bg);
+  --color-cyl-info-text: var(--cyl-info-text);
+  --color-cyl-brand: var(--cyl-brand);
+  --color-cyl-brand-light: var(--cyl-brand-light);
+  --color-cyl-brand-soft: var(--cyl-brand-soft);
+  --color-cyl-green-olive: var(--cyl-green-olive);
+  --color-cyl-green-lime: var(--cyl-green-lime);
   --color-cyl-black: var(--cyl-black);
   --color-cyl-graphite: var(--cyl-graphite);
   --color-cyl-ink: var(--cyl-ink);
@@ -60,9 +188,9 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(242, 198, 92, 0.18), transparent 30rem),
-    radial-gradient(circle at bottom right, rgba(33, 28, 20, 0.08), transparent 32rem),
-    var(--background);
+    radial-gradient(circle at top left, var(--cyl-body-glow), transparent 30rem),
+    radial-gradient(circle at bottom right, var(--cyl-body-shade), transparent 32rem),
+    var(--cyl-bg);
   color: var(--foreground);
   font-family:
     "MontserratPortal", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -77,18 +205,18 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid rgba(242, 198, 92, 0.7);
+  outline: 3px solid color-mix(in srgb, var(--cyl-brand) 72%, transparent);
   outline-offset: 3px;
 }
 
 .leaflet-container :focus-visible {
-  outline: 3px solid rgba(17, 24, 39, 0.9);
+  outline: 3px solid var(--cyl-action);
   outline-offset: 2px;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(33, 28, 20, 0.24) transparent;
+  scrollbar-color: var(--cyl-neutral-400) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -99,7 +227,7 @@ a {
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background: rgba(33, 28, 20, 0.24);
+  background: var(--cyl-neutral-400);
   background-clip: content-box;
 }
 
@@ -130,8 +258,8 @@ a[role="button"]:not(:disabled):hover {
 
 .panel {
   border-radius: 1.75rem;
-  border: 1px solid rgba(33, 28, 20, 0.08);
-  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--cyl-border);
+  background: color-mix(in srgb, var(--cyl-card) 90%, transparent);
   box-shadow: var(--cyl-shadow-soft);
   backdrop-filter: blur(12px);
 }
@@ -154,23 +282,23 @@ a[role="button"]:not(:disabled):hover {
 
 .dark-panel {
   border-radius: 1.75rem;
-  border: 1px solid rgba(242, 198, 92, 0.18);
+  border: 1px solid color-mix(in srgb, var(--cyl-brand) 22%, transparent);
   background: linear-gradient(
     180deg,
-    rgba(27, 27, 27, 0.94),
-    rgba(10, 10, 10, 0.96)
+    color-mix(in srgb, var(--cyl-surface-alt) 92%, #000000 8%),
+    color-mix(in srgb, var(--cyl-bg) 88%, #000000 12%)
   );
-  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--cyl-shadow-lg);
   backdrop-filter: blur(16px);
 }
 
 .metric-card {
   border-radius: 1.5rem;
-  border: 1px solid rgba(33, 28, 20, 0.08);
+  border: 1px solid var(--cyl-border);
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.96),
-    rgba(246, 239, 223, 0.9)
+    color-mix(in srgb, var(--cyl-card) 96%, transparent),
+    color-mix(in srgb, var(--cyl-surface-alt) 90%, transparent)
   );
   box-shadow: var(--cyl-shadow-soft);
 }
@@ -178,14 +306,12 @@ a[role="button"]:not(:disabled):hover {
 .portal-shell-root {
   isolation: isolate;
   background:
-    radial-gradient(circle at 12% 0%, rgba(242, 198, 92, 0.18), transparent 30rem),
+    radial-gradient(circle at 12% 0%, var(--cyl-body-glow), transparent 30rem),
     linear-gradient(
       180deg,
-      #1d1d1d 0,
-      #202020 30rem,
-      #26231d 42rem,
-      #fbf8ef 70rem,
-      #fbf8ef 100%
+      var(--cyl-shell-from) 0,
+      var(--cyl-shell-via) 34rem,
+      var(--cyl-shell-to) 100%
     );
 }
 
@@ -202,23 +328,23 @@ a[role="button"]:not(:disabled):hover {
 
 .chip {
   border-radius: 999px;
-  border: 1px solid rgba(242, 198, 92, 0.2);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--cyl-brand) 22%, transparent);
+  background: color-mix(in srgb, var(--cyl-surface) 10%, transparent);
   padding: 0.55rem 0.9rem;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--cyl-text-secondary);
   backdrop-filter: blur(10px);
 }
 
 .table-shell {
   overflow-x: auto;
   border-radius: 1.5rem;
-  border: 1px solid rgba(33, 28, 20, 0.08);
+  border: 1px solid var(--cyl-border);
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.94),
-    rgba(249, 245, 236, 0.92)
+    color-mix(in srgb, var(--cyl-card) 94%, transparent),
+    color-mix(in srgb, var(--cyl-surface-alt) 92%, transparent)
   );
-  box-shadow: 0 22px 44px rgba(17, 11, 2, 0.08);
+  box-shadow: var(--cyl-shadow-base);
 }
 
 .table-shell table {
@@ -230,7 +356,7 @@ a[role="button"]:not(:disabled):hover {
 .table-shell th,
 .table-shell td {
   padding: 1.15rem 1rem;
-  border-bottom: 1px solid rgba(33, 28, 20, 0.08);
+  border-bottom: 1px solid var(--cyl-line);
   vertical-align: top;
 }
 
@@ -238,8 +364,8 @@ a[role="button"]:not(:disabled):hover {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: linear-gradient(180deg, #f8f0db, #f2e8d0);
-  color: #4b3b14;
+  background: color-mix(in srgb, var(--cyl-action) 48%, var(--cyl-surface-alt));
+  color: var(--cyl-text);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -261,19 +387,19 @@ a[role="button"]:not(:disabled):hover {
 }
 
 .table-shell tbody tr:nth-child(even) td {
-  background: rgba(255, 251, 243, 0.62);
+  background: color-mix(in srgb, var(--cyl-surface-alt) 62%, transparent);
 }
 
 .table-shell tbody tr:hover td {
-  background: rgba(255, 247, 228, 0.92);
+  background: color-mix(in srgb, var(--cyl-brand-soft) 72%, var(--cyl-card) 28%);
 }
 
 .table-shell tbody tr.is-selected td {
-  background: rgba(255, 243, 212, 0.94);
+  background: color-mix(in srgb, var(--cyl-brand-light) 70%, var(--cyl-card) 30%);
 }
 
 .table-shell tbody tr.is-selected td:first-child {
-  box-shadow: inset 4px 0 0 #f2c65c;
+  box-shadow: inset 4px 0 0 var(--cyl-brand);
 }
 
 .table-shell tr:last-child td {
@@ -293,7 +419,7 @@ a[role="button"]:not(:disabled):hover {
 .tracking-map-shell .leaflet-container {
   height: 100%;
   width: 100%;
-  background: linear-gradient(180deg, #eef4f7, #d7e1e6);
+  background: linear-gradient(180deg, var(--cyl-map-bg-from), var(--cyl-map-bg-to));
   font-family:
     "MontserratPortal", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -310,7 +436,7 @@ a[role="button"]:not(:disabled):hover {
   border: 0;
   border-radius: 1rem;
   overflow: hidden;
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16);
+  box-shadow: var(--cyl-shadow-base);
 }
 
 .tracking-map-shell .leaflet-control-zoom a {
@@ -318,36 +444,36 @@ a[role="button"]:not(:disabled):hover {
   height: 2.5rem;
   line-height: 2.5rem;
   border: 0;
-  background: rgba(255, 255, 255, 0.96);
-  color: #111827;
+  background: color-mix(in srgb, var(--cyl-card) 96%, transparent);
+  color: var(--cyl-text);
   transition:
     background 160ms ease,
     color 160ms ease;
 }
 
 .tracking-map-shell .leaflet-control-zoom a:hover {
-  background: #111827;
-  color: #fff;
+  background: var(--cyl-action);
+  color: var(--cyl-black);
 }
 
 .tracking-map-shell .leaflet-control-attribution {
   border-radius: 0.85rem 0 0 0;
-  background: rgba(255, 255, 255, 0.84);
-  color: rgba(24, 21, 17, 0.72);
+  background: color-mix(in srgb, var(--cyl-card) 84%, transparent);
+  color: var(--cyl-text-secondary);
   font-size: 0.65rem;
 }
 
 .tracking-map-shell .leaflet-tooltip {
   border: 0;
   border-radius: 1rem;
-  background: rgba(17, 24, 39, 0.94);
-  color: #fff;
-  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.22);
+  background: color-mix(in srgb, var(--cyl-surface) 94%, transparent);
+  color: var(--cyl-text);
+  box-shadow: var(--cyl-shadow-base);
   padding: 0.75rem 0.85rem;
 }
 
 .tracking-map-shell .leaflet-tooltip-top:before {
-  border-top-color: rgba(17, 24, 39, 0.94);
+  border-top-color: color-mix(in srgb, var(--cyl-surface) 94%, transparent);
 }
 
 .tracking-pin-wrapper {

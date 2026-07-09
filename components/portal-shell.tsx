@@ -7,6 +7,7 @@ import {
 } from "@/lib/auth";
 import { isPortalAdminRole } from "@/lib/auth-session";
 import { PortalMobileNav } from "./portal-mobile-nav";
+import { ThemeToggle } from "./theme-toggle";
 
 type PortalShellProps = {
   activePath: "/" | "/usuarios";
@@ -88,7 +89,7 @@ export async function PortalShell({
   const activeKey = activePath === "/usuarios" ? "usuarios" : null;
 
   return (
-    <div className="portal-shell-root min-h-screen text-cyl-paper">
+    <div className="portal-shell-root min-h-screen text-cyl-ink">
       <a
         href="#main-content"
         className="sr-only fixed left-4 top-4 z-[120] rounded-full bg-cyl-gold px-5 py-3 text-sm font-bold text-cyl-black shadow-xl focus:not-sr-only"
@@ -186,6 +187,7 @@ export async function PortalShell({
             <div
               className={`flex items-center gap-2 sm:gap-3 ${visibleNavigation.length > 0 ? "" : "ml-auto"}`}
             >
+              <ThemeToggle locale={locale} />
               <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white md:flex">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyl-gold/16 text-cyl-gold">
                   <UserIcon />

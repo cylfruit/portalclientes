@@ -191,7 +191,7 @@ export default async function UsersPage() {
                         {profile.description}
                       </p>
                     </div>
-                    <span className="rounded-full bg-black px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyl-gold">
+                    <span className="rounded-full bg-cyl-graphite px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyl-gold">
                       {profile.scope}
                     </span>
                   </div>
@@ -199,7 +199,7 @@ export default async function UsersPage() {
                     {profile.modules.map((module) => (
                       <span
                         key={`${profile.name}-${module}`}
-                        className="rounded-full border border-cyl-gold/25 bg-white px-3 py-1 text-xs font-semibold text-cyl-ink"
+                        className="rounded-full border border-cyl-gold/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
                       >
                         {module}
                       </span>

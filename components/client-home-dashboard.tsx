@@ -505,11 +505,11 @@ function formatFileSize(
 function shipmentStatusBadge(status: ShipmentSummary["status"]) {
   switch (status) {
     case "Arribado":
-      return "inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700";
+      return "inline-flex items-center rounded-full border border-cyl-success/30 bg-cyl-success-bg px-2.5 py-0.5 text-xs font-semibold text-cyl-success";
     case "En transito":
-      return "inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700";
+      return "inline-flex items-center rounded-full border border-cyl-info-text/30 bg-cyl-info-bg px-2.5 py-0.5 text-xs font-semibold text-cyl-info-text";
     default:
-      return "inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700";
+      return "inline-flex items-center rounded-full border border-cyl-warning-text/30 bg-cyl-warning-bg px-2.5 py-0.5 text-xs font-semibold text-cyl-warning-text";
   }
 }
 
@@ -534,11 +534,11 @@ function documentStateBadgeDot(state: string) {
     case "VIGENTE":
     case "CARGADO":
     case "DISPONIBLE":
-      return "h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500";
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-cyl-success";
     case "PARCIAL":
-      return "h-2 w-2 flex-shrink-0 rounded-full bg-amber-400";
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-cyl-warning-text";
     default:
-      return "h-2 w-2 flex-shrink-0 rounded-full bg-slate-300";
+      return "h-2 w-2 flex-shrink-0 rounded-full bg-cyl-muted/45";
   }
 }
 
@@ -863,10 +863,10 @@ function SummaryCard({
       onClick={onClick}
       aria-pressed={isActive}
       aria-label={ariaLabel}
-      className={`rounded-[1.6rem] border bg-white p-6 text-left shadow-[0_16px_40px_rgba(13,13,13,0.10)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_46px_rgba(13,13,13,0.14)] ${
+      className={`rounded-[1.6rem] border bg-cyl-surface p-6 text-left shadow-[var(--cyl-shadow-base)] transition hover:-translate-y-0.5 hover:shadow-[var(--cyl-shadow-lg)] ${
         isActive
           ? "border-cyl-gold ring-2 ring-cyl-gold/45"
-          : "border-black/8"
+          : "border-cyl-border"
       }`}
     >
       <p
@@ -874,10 +874,10 @@ function SummaryCard({
       >
         {label}
       </p>
-      <p className="mt-3 text-5xl font-semibold tracking-[-0.03em] text-[#0f172a]">
+      <p className="mt-3 text-5xl font-semibold tracking-[-0.03em] text-cyl-ink">
         {formatNumber(count)}
       </p>
-      <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+      <p className="mt-2 text-sm text-cyl-muted">{subtitle}</p>
     </button>
   );
 }
@@ -898,7 +898,7 @@ function ShipmentDocumentsGrid({
     state.items.length === 0
   ) {
     return (
-      <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm font-medium text-cyl-ink/68">
+      <div className="mt-4 rounded-[1.1rem] border border-cyl-border bg-cyl-surface/80 px-4 py-4 text-sm font-medium text-cyl-ink/68">
         {copy.loadingDocs}
       </div>
     );
@@ -906,12 +906,12 @@ function ShipmentDocumentsGrid({
 
   if (state.status === "error" && state.items.length === 0) {
     return (
-      <div className="mt-4 rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-900">
+      <div className="mt-4 rounded-[1.1rem] border border-cyl-warning-text/30 bg-cyl-warning-bg px-4 py-4 text-sm text-cyl-warning-text">
         <p>{state.errorMessage ?? copy.docsLoadFailed}</p>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-50"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-cyl-warning-text/30 bg-cyl-surface px-3 py-1.5 text-xs font-semibold text-cyl-warning-text transition hover:bg-cyl-surface-alt"
         >
           <SparkleIcon />
           {copy.retry}
@@ -927,7 +927,7 @@ function ShipmentDocumentsGrid({
           {state.unavailableTypes.map((documentType) => (
             <div
               key={`unavailable-${documentType}`}
-              className="rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-amber-900 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+              className="rounded-[1.1rem] border border-cyl-warning-text/30 bg-cyl-warning-bg px-4 py-4 text-cyl-warning-text shadow-[var(--cyl-shadow-sm)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold leading-snug">
@@ -947,7 +947,7 @@ function ShipmentDocumentsGrid({
     }
 
     return (
-      <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/80 px-4 py-4 text-sm text-cyl-ink/68">
+      <div className="mt-4 rounded-[1.1rem] border border-cyl-border bg-cyl-surface/80 px-4 py-4 text-sm text-cyl-ink/68">
         {copy.noDocsAvailable}
       </div>
     );
@@ -956,13 +956,13 @@ function ShipmentDocumentsGrid({
   return (
     <div className="mt-4 space-y-2">
       {state.status === "loading" ? (
-        <div className="rounded-2xl border border-black/8 bg-[#eef6fb] px-4 py-3 text-sm text-cyl-ink/72">
+        <div className="rounded-2xl border border-cyl-info-text/25 bg-cyl-info-bg px-4 py-3 text-sm text-cyl-info-text">
           {copy.loadingDocs}
         </div>
       ) : null}
 
       {state.status === "error" && state.errorMessage ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-2xl border border-cyl-warning-text/30 bg-cyl-warning-bg px-4 py-3 text-sm text-cyl-warning-text">
           {state.errorMessage}
         </div>
       ) : null}
@@ -972,7 +972,7 @@ function ShipmentDocumentsGrid({
           {state.unavailableTypes.map((documentType) => (
             <div
               key={`unavailable-${documentType}`}
-              className="rounded-[1.1rem] border border-amber-200 bg-amber-50/90 px-4 py-4 text-amber-900 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+              className="rounded-[1.1rem] border border-cyl-warning-text/30 bg-cyl-warning-bg px-4 py-4 text-cyl-warning-text shadow-[var(--cyl-shadow-sm)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold leading-snug">
@@ -994,7 +994,7 @@ function ShipmentDocumentsGrid({
         {state.items.map((doc) => (
           <div
             key={doc.id}
-            className="rounded-[1.1rem] border border-black/8 bg-white px-4 py-4 shadow-[0_8px_20px_rgba(15,23,42,0.05)]"
+            className="rounded-[1.1rem] border border-cyl-border bg-cyl-surface px-4 py-4 shadow-[var(--cyl-shadow-sm)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-2">
@@ -1027,14 +1027,14 @@ function ShipmentDocumentsGrid({
                 href={doc.viewUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/12 bg-[#1f2937]/85 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#111827]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-cyl-border bg-cyl-graphite px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110"
               >
                 <EyeIcon />
                 {copy.openDocument}
               </a>
               <a
                 href={doc.downloadUrl}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#047857]"
+                className="inline-flex items-center gap-1.5 rounded-full bg-cyl-success px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
               >
                 <DownloadIcon />
                 {copy.download}
@@ -1061,18 +1061,18 @@ function ShipmentCourierCard({
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-[1.35rem] border border-cyl-gold/28 bg-gradient-to-br from-[#fff8e6] via-white to-[#f6efdf] text-sm text-cyl-ink shadow-[0_14px_34px_rgba(17,11,2,0.09)]">
+    <div className="mt-4 overflow-hidden rounded-[1.35rem] border border-cyl-gold/28 bg-gradient-to-br from-cyl-brand-soft via-cyl-surface to-cyl-surface-alt text-sm text-cyl-ink shadow-[var(--cyl-shadow-base)]">
       <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#151515] text-lg font-black text-cyl-gold shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyl-graphite text-lg font-black text-cyl-gold shadow-sm">
             C
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7a5a12]">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyl-warning-text">
                 {copy.courierTitle}
               </p>
-              <span className="rounded-full border border-emerald-500/18 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-700">
+              <span className="rounded-full border border-cyl-success/25 bg-cyl-success-bg px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-success">
                 {courier.noNecesitaCourier ? "No aplica" : "Disponible"}
               </span>
             </div>
@@ -1082,7 +1082,7 @@ function ShipmentCourierCard({
               </p>
             ) : (
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                <div className="rounded-2xl border border-cyl-border bg-cyl-surface/75 px-3 py-2">
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
                     {copy.courierCompany}
                   </p>
@@ -1090,7 +1090,7 @@ function ShipmentCourierCard({
                     {courier.courierName ?? copy.noData}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                <div className="rounded-2xl border border-cyl-border bg-cyl-surface/75 px-3 py-2">
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
                     {copy.courierTracking}
                   </p>
@@ -1098,7 +1098,7 @@ function ShipmentCourierCard({
                     {courier.trackingNumber ?? copy.noData}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-cyl-line bg-white/75 px-3 py-2">
+                <div className="rounded-2xl border border-cyl-border bg-cyl-surface/75 px-3 py-2">
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
                     {copy.courierDate}
                   </p>
@@ -1223,10 +1223,10 @@ function TrackingTimeline({
   function connectorColor(index: number, side: "left" | "right") {
     if (side === "left") {
       if (index === 0) return "invisible";
-      return steps[index - 1].done ? "bg-emerald-400" : "bg-slate-200";
+      return steps[index - 1].done ? "bg-cyl-success" : "bg-cyl-border";
     }
     if (index === steps.length - 1) return "invisible";
-    return steps[index].done ? "bg-emerald-400" : "bg-slate-200";
+    return steps[index].done ? "bg-cyl-success" : "bg-cyl-border";
   }
 
   return (
@@ -1244,10 +1244,10 @@ function TrackingTimeline({
               <div
                 className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
                   step.done
-                    ? "border-emerald-500 bg-emerald-500"
+                    ? "border-cyl-success bg-cyl-success"
                     : step.active
-                      ? "border-sky-500 bg-sky-100"
-                      : "border-slate-300 bg-white"
+                      ? "border-cyl-info-text bg-cyl-info-bg"
+                      : "border-cyl-border bg-cyl-surface"
                 }`}
               />
               <div
@@ -1257,10 +1257,10 @@ function TrackingTimeline({
             <p
               className={`mt-2 text-center text-[0.65rem] font-semibold leading-tight ${
                 step.done
-                  ? "text-emerald-600"
+                  ? "text-cyl-success"
                   : step.active
-                    ? "text-sky-600"
-                    : "text-slate-400"
+                    ? "text-cyl-info-text"
+                    : "text-cyl-muted"
               }`}
             >
               {step.label}
@@ -1285,7 +1285,7 @@ function TrackingTimeline({
             <span>{copy.trackingProgress}</span>
             <span>{formatProgress(displayProgress, locale)}</span>
           </div>
-          <div className="h-1.5 rounded-full bg-slate-200">
+          <div className="h-1.5 rounded-full bg-cyl-border">
             <div
               className="h-1.5 rounded-full bg-sky-500"
               role="progressbar"
@@ -1336,9 +1336,9 @@ function ShipmentExpandedRow({
 
   return (
     <div className="px-4 pb-5 pt-2">
-      <div className="rounded-3xl border border-black/8 bg-[#fffaf1] p-5 shadow-[0_14px_30px_rgba(15,23,42,0.07)]">
+      <div className="rounded-3xl border border-cyl-border bg-cyl-surface-alt p-5 shadow-[var(--cyl-shadow-base)]">
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/8 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-cyl-line pb-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyl-ink/55">
               EMB {shipment.id} · {shipment.season}
@@ -1354,7 +1354,7 @@ function ShipmentExpandedRow({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-cyl-ink transition hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyl-border bg-cyl-surface px-3 py-1.5 text-xs font-semibold text-cyl-ink transition hover:bg-cyl-surface-alt"
           >
             <CloseIcon />
             {copy.close}
@@ -1374,7 +1374,7 @@ function ShipmentExpandedRow({
               {metaRows.map(([label, value]) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-black/6 bg-white/80 px-3 py-2"
+                  className="rounded-xl border border-cyl-border bg-cyl-surface/80 px-3 py-2"
                 >
                   <p className="font-semibold text-cyl-ink/55">{label}</p>
                   <p className="mt-0.5 text-cyl-ink">{value}</p>
@@ -1398,7 +1398,7 @@ function ShipmentExpandedRow({
                   docsState.status === "idle" ? onLoadDocs : onReloadDocs
                 }
                 disabled={docsState.status === "loading"}
-                className={`dashboard-loading-button inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-slate-400 ${
+                className={`dashboard-loading-button inline-flex items-center gap-1.5 rounded-full bg-cyl-success px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45 ${
                   docsState.status === "loading" ? "is-busy" : ""
                 }`}
               >
@@ -1833,7 +1833,7 @@ export function ClientHomeDashboard({
       {errorMessage ? (
         <div
           role="alert"
-          className="dashboard-enter rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-950 shadow-[0_14px_32px_rgba(146,64,14,0.08)]"
+          className="dashboard-enter rounded-[1.4rem] border border-cyl-warning-text/30 bg-cyl-warning-bg px-5 py-4 text-sm text-cyl-warning-text shadow-[var(--cyl-shadow-base)]"
         >
           <p className="font-bold">{copy.operationalErrorTitle}</p>
           <p className="mt-1 leading-6">{errorMessage}</p>
@@ -1844,7 +1844,7 @@ export function ClientHomeDashboard({
         <div
           role="status"
           aria-live="polite"
-          className="dashboard-enter rounded-[1.4rem] border border-sky-200 bg-sky-50/95 px-5 py-4 text-sm text-sky-950 shadow-[0_14px_32px_rgba(14,116,144,0.08)]"
+          className="dashboard-enter rounded-[1.4rem] border border-cyl-info-text/30 bg-cyl-info-bg px-5 py-4 text-sm text-cyl-info-text shadow-[var(--cyl-shadow-base)]"
         >
           <p className="font-bold">{copy.trackingWarningTitle}</p>
           <p className="mt-1 leading-6">{trackingErrorMessage}</p>
@@ -1857,7 +1857,7 @@ export function ClientHomeDashboard({
           label={copy.arrivingSoon}
           count={arrivingSoonCount}
           subtitle={copy.arrivingSoonSub}
-          accentClass="text-amber-600"
+          accentClass="text-cyl-warning-text"
           ariaLabel={copy.summaryFilterLabel(
             copy.arrivingSoon,
             arrivingSoonCount,
@@ -1870,7 +1870,7 @@ export function ClientHomeDashboard({
           label={copy.inTransit}
           count={inTransitCount}
           subtitle={copy.inTransitSub}
-          accentClass="text-sky-600"
+          accentClass="text-cyl-info-text"
           ariaLabel={copy.summaryFilterLabel(
             copy.inTransit,
             inTransitCount,
@@ -1883,7 +1883,7 @@ export function ClientHomeDashboard({
           label={copy.docsReady}
           count={docsReadyCount}
           subtitle={copy.docsReadySub}
-          accentClass="text-emerald-600"
+          accentClass="text-cyl-success"
           ariaLabel={copy.summaryFilterLabel(
             copy.docsReady,
             docsReadyCount,
@@ -1899,7 +1899,7 @@ export function ClientHomeDashboard({
         role="search"
         aria-label={copy.filtersRegionLabel}
         aria-busy={isLoadingSeason || isSearchSettling}
-        className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-black/8 bg-white/88 px-4 py-4 text-cyl-ink shadow-[0_18px_44px_rgba(17,11,2,0.12)] backdrop-blur-sm sm:px-5 lg:border-white/10 lg:bg-white/6 lg:text-white lg:shadow-[0_16px_40px_rgba(0,0,0,0.12)] ${
+        className={`dashboard-enter dashboard-enter-delay-1 dashboard-live-region rounded-3xl border border-cyl-border bg-cyl-surface/88 px-4 py-4 text-cyl-ink shadow-[var(--cyl-shadow-base)] backdrop-blur-sm sm:px-5 ${
           isLoadingSeason || isSearchSettling ? "is-busy" : ""
         }`}
       >
@@ -1908,7 +1908,7 @@ export function ClientHomeDashboard({
             <label htmlFor="shipment-search" className="sr-only">
               {copy.searchLabel}
             </label>
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyl-muted">
               {isSearchSettling ? (
                 <SpinnerIcon className="h-4 w-4" />
               ) : (
@@ -1924,7 +1924,7 @@ export function ClientHomeDashboard({
                 setCurrentPage(1);
               }}
               placeholder={copy.searchPlaceholder}
-              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 pl-9 pr-4 text-sm text-cyl-ink placeholder:text-cyl-ink/42 backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:placeholder:text-white/45 lg:focus:border-white/30 lg:focus:bg-white/14"
+              className="h-11 w-full rounded-2xl border border-cyl-border bg-cyl-surface/80 pl-9 pr-4 text-sm text-cyl-ink placeholder:text-cyl-muted backdrop-blur-sm transition focus:border-cyl-action focus:bg-cyl-surface focus:outline-none focus:ring-2 focus:ring-cyl-action/25"
             />
           </div>
 
@@ -1939,22 +1939,22 @@ export function ClientHomeDashboard({
                 setSearchField(e.target.value as SearchField);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30 lg:focus:bg-white/14"
+              className="h-11 w-full appearance-none rounded-2xl border border-cyl-border bg-cyl-surface/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-action focus:bg-cyl-surface focus:outline-none focus:ring-2 focus:ring-cyl-action/25"
             >
-              <option value="all" className="bg-[#1d1d1d] text-white">
+              <option value="all" className="bg-cyl-surface text-cyl-ink">
                 {copy.searchByLabel}: {copy.searchByAll}
               </option>
-              <option value="container" className="bg-[#1d1d1d] text-white">
+              <option value="container" className="bg-cyl-surface text-cyl-ink">
                 {copy.searchByLabel}: {copy.searchByContainer}
               </option>
-              <option value="shipment" className="bg-[#1d1d1d] text-white">
+              <option value="shipment" className="bg-cyl-surface text-cyl-ink">
                 {copy.searchByLabel}: {copy.searchByShipment}
               </option>
-              <option value="booking" className="bg-[#1d1d1d] text-white">
+              <option value="booking" className="bg-cyl-surface text-cyl-ink">
                 {copy.searchByLabel}: {copy.searchByBooking}
               </option>
             </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-muted">
               <ChevronDownIcon />
             </span>
           </div>
@@ -1968,14 +1968,14 @@ export function ClientHomeDashboard({
               value={selectedSeason}
               onChange={(e) => void handleSeasonChange(e.target.value)}
               disabled={isLoadingSeason}
-              className="h-11 w-full appearance-none rounded-2xl border border-black/10 bg-white/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-gold/80 focus:bg-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 lg:border-white/14 lg:bg-white/10 lg:text-white lg:focus:border-white/30 lg:focus:bg-white/14"
+              className="h-11 w-full appearance-none rounded-2xl border border-cyl-border bg-cyl-surface/80 pl-4 pr-9 text-sm font-medium text-cyl-ink backdrop-blur-sm transition focus:border-cyl-action focus:bg-cyl-surface focus:outline-none focus:ring-2 focus:ring-cyl-action/25 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {initialSeasons.length > 0 ? (
                 initialSeasons.map((season) => (
                   <option
                     key={season.code}
                     value={season.code}
-                    className="bg-[#1d1d1d] text-white"
+                    className="bg-cyl-surface text-cyl-ink"
                   >
                     {copy.seasonLabel}: {season.description}
                   </option>
@@ -1983,13 +1983,13 @@ export function ClientHomeDashboard({
               ) : (
                 <option
                   value={selectedSeason}
-                  className="bg-[#1d1d1d] text-white"
+                  className="bg-cyl-surface text-cyl-ink"
                 >
                   {copy.seasonLabel}: {selectedSeason}
                 </option>
               )}
             </select>
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-ink/40 lg:text-white/50">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-cyl-muted">
               <ChevronDownIcon />
             </span>
           </div>
@@ -1998,7 +1998,7 @@ export function ClientHomeDashboard({
             type="button"
             onClick={clearFilters}
             disabled={!hasActiveFilters || isLoadingSeason}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white/70 px-4 text-sm font-semibold text-cyl-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 lg:border-white/14 lg:bg-white/10 lg:text-white lg:hover:bg-white/16"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyl-border bg-cyl-surface/70 px-4 text-sm font-semibold text-cyl-ink transition hover:bg-cyl-surface-alt disabled:cursor-not-allowed disabled:opacity-45"
           >
             <CloseIcon />
             {copy.clearFilters}
@@ -2012,7 +2012,7 @@ export function ClientHomeDashboard({
               isLoadingSeason ||
               isSearchSettling
             }
-            className={`dashboard-loading-button inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#059669] px-4 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 ${
+            className={`dashboard-loading-button inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-cyl-success px-4 text-sm font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-45 ${
               isLoadingSeason || isSearchSettling ? "is-busy" : ""
             }`}
           >
@@ -2027,7 +2027,7 @@ export function ClientHomeDashboard({
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-muted">
               {copy.etdFromLabel}
             </span>
             <input
@@ -2037,12 +2037,12 @@ export function ClientHomeDashboard({
                 setEtdFrom(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
+              className="h-11 w-full rounded-2xl border border-cyl-border bg-cyl-surface/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition focus:border-cyl-action focus:bg-cyl-surface focus:outline-none focus:ring-2 focus:ring-cyl-action/25"
             />
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-ink/55 lg:text-white/58">
+            <span className="mb-1.5 block text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-cyl-muted">
               {copy.etaFromLabel}
             </span>
             <input
@@ -2052,14 +2052,14 @@ export function ClientHomeDashboard({
                 setEtaFrom(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-11 w-full rounded-2xl border border-black/10 bg-white/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition [color-scheme:light] focus:border-cyl-gold/80 focus:bg-white focus:outline-none lg:border-white/14 lg:bg-white/10 lg:text-white lg:[color-scheme:dark] lg:focus:border-white/30 lg:focus:bg-white/14"
+              className="h-11 w-full rounded-2xl border border-cyl-border bg-cyl-surface/80 px-4 text-sm text-cyl-ink backdrop-blur-sm transition focus:border-cyl-action focus:bg-cyl-surface focus:outline-none focus:ring-2 focus:ring-cyl-action/25"
             />
           </label>
         </div>
 
         <p
           aria-live="polite"
-          className={`mt-3 text-xs text-cyl-ink/55 transition-opacity duration-200 lg:text-white/55 ${
+          className={`mt-3 text-xs text-cyl-muted transition-opacity duration-200 ${
             isSearchSettling ? "opacity-80" : "opacity-100"
           }`}
         >
@@ -2087,11 +2087,11 @@ export function ClientHomeDashboard({
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2
               id="tracking-map-heading"
-              className="text-lg font-semibold text-white"
+              className="text-lg font-semibold text-cyl-ink"
             >
               {copy.trackingTitle}
             </h2>
-            <span className="text-xs text-white/55">
+            <span className="text-xs text-cyl-muted">
               {trackedItems.length}{" "}
               {locale === "es"
                 ? "contenedor(es) con posición en tiempo real"
@@ -2104,7 +2104,7 @@ export function ClientHomeDashboard({
           </p>
           <div
             aria-describedby="tracking-map-description"
-            className="overflow-hidden rounded-3xl shadow-[0_20px_48px_rgba(0,0,0,0.22)]"
+            className="overflow-hidden rounded-3xl border border-cyl-border shadow-[var(--cyl-shadow-lg)]"
             style={{ height: "420px" }}
           >
             <TrackingMap
@@ -2118,7 +2118,7 @@ export function ClientHomeDashboard({
 
           {/* Panel de info del embarque seleccionado en el mapa */}
           {selectedMapShipment ? (
-            <div className="mt-3 rounded-[1.4rem] border border-white/14 bg-white/10 px-5 py-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+            <div className="mt-3 rounded-[1.4rem] border border-cyl-border bg-cyl-surface/90 px-5 py-4 shadow-[var(--cyl-shadow-base)] backdrop-blur-sm">
               {(() => {
                 const selectedMapProgress = normalizeTrackingProgress(
                   selectedMapTracking?.progressPercentage,
@@ -2136,15 +2136,15 @@ export function ClientHomeDashboard({
                         {statusLabel(selectedMapShipment.status, locale)}
                       </span>
                       <div>
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-cyl-ink">
                           {selectedMapShipment.container}
                           {selectedMapShipment.bl !== "Sin BL" ? (
-                            <span className="ml-2 font-normal text-white/65">
+                            <span className="ml-2 font-normal text-cyl-muted">
                               BL {selectedMapShipment.bl}
                             </span>
                           ) : null}
                         </p>
-                        <p className="mt-0.5 text-xs text-white/60">
+                        <p className="mt-0.5 text-xs text-cyl-muted">
                           {selectedMapShipment.vesselName} ·{" "}
                           {selectedMapShipment.originPort} →{" "}
                           {selectedMapShipment.destinationPort}
@@ -2153,22 +2153,22 @@ export function ClientHomeDashboard({
                     </div>
 
                       <div className="flex items-center gap-2">
-                        <div className="flex gap-4 text-xs text-white/70">
+                        <div className="flex gap-4 text-xs text-cyl-ink/70">
                         <span>
-                          <span className="text-white/45">
+                          <span className="text-cyl-muted">
                             {copy.etdLabel}:{" "}
                           </span>
                           {formatDate(selectedMapShipment.etd, locale)}
                         </span>
                         <span>
-                          <span className="text-white/45">
+                          <span className="text-cyl-muted">
                             {copy.etaLabel}:{" "}
                           </span>
                           {formatDate(selectedMapShipment.eta, locale)}
                         </span>
                         {selectedMapProgress !== null ? (
                           <span>
-                            <span className="text-white/45">
+                              <span className="text-cyl-muted">
                               {copy.trackingProgress}:{" "}
                             </span>
                             {Math.round(selectedMapProgress)}%
@@ -2191,7 +2191,7 @@ export function ClientHomeDashboard({
                           setCurrentPage(page);
                           setExpandedKey(selectedMapShipment.groupKey);
                         }}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-[#059669] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-cyl-success px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-95"
                       >
                         <ChevronDownIcon />
                         {copy.showInTable}
@@ -2200,7 +2200,7 @@ export function ClientHomeDashboard({
                         type="button"
                         onClick={() => setMapSelectedKey(null)}
                         aria-label={copy.clearMapSelection}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/16"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-cyl-border bg-cyl-surface px-3 py-2 text-xs font-semibold text-cyl-ink transition hover:bg-cyl-surface-alt"
                       >
                         <CloseIcon />
                       </button>
@@ -2227,19 +2227,19 @@ export function ClientHomeDashboard({
         <div className="mb-4 flex items-center justify-between gap-4">
           <h2
             id="shipments-table-heading"
-            className="text-2xl font-semibold text-white"
+            className="text-2xl font-semibold text-cyl-ink"
           >
             {copy.misEmbarques}
           </h2>
           {totalPages > 1 ? (
-            <span className="text-sm text-white/60">
+            <span className="text-sm text-cyl-muted">
               {copy.pageOf(safePage, totalPages)}
             </span>
           ) : null}
         </div>
 
         {filteredShipments.length === 0 ? (
-          <div className="rounded-3xl border border-black/8 bg-white p-10 text-center shadow-[0_20px_40px_rgba(13,13,13,0.10)]">
+          <div className="rounded-3xl border border-cyl-border bg-cyl-surface p-10 text-center shadow-[var(--cyl-shadow-base)]">
             <p className="text-lg font-semibold text-cyl-ink">
               {copy.noShipmentsTitle}
             </p>
@@ -2256,7 +2256,7 @@ export function ClientHomeDashboard({
                   {copy.misEmbarques}
                 </caption>
                 <thead>
-                  <tr className="border-b border-black/8">
+                  <tr className="border-b border-cyl-line">
                     <th
                       scope="col"
                       className="px-4 py-3 text-center text-xs font-bold uppercase tracking-[0.15em] text-cyl-ink/55"
@@ -2301,12 +2301,12 @@ export function ClientHomeDashboard({
                       <Fragment key={shipment.groupKey}>
                         <tr
                           id={`row-${shipment.groupKey}`}
-                          className={`border-b border-black/6 transition-colors last:border-0 ${
+                          className={`border-b border-cyl-line transition-colors last:border-0 ${
                             isExpanded
-                              ? "bg-[#fffbf2]"
+                              ? "bg-cyl-brand-soft"
                               : isMapSelected
-                                ? "bg-sky-50 outline-2 outline-sky-300"
-                                : "even:bg-black/[0.018] hover:bg-[#fffbee]"
+                                ? "bg-cyl-info-bg outline-2 outline-cyl-info-text/40"
+                                : "even:bg-cyl-surface-alt/55 hover:bg-cyl-brand-soft/55"
                           }`}
                         >
                           <td className="px-4 py-3.5 text-center align-middle">
@@ -2358,8 +2358,8 @@ export function ClientHomeDashboard({
                               aria-label={copy.toggleDetailsFor(shipment.id)}
                               className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition ${
                                 isExpanded
-                                  ? "bg-[#111827] text-white hover:bg-[#1f2937]"
-                                  : "border border-black/10 bg-white text-cyl-ink hover:bg-slate-50"
+                                  ? "bg-cyl-action text-cyl-black hover:bg-cyl-action-hover"
+                                  : "border border-cyl-border bg-cyl-surface text-cyl-ink hover:bg-cyl-surface-alt"
                               }`}
                             >
                               {isExpanded ? (
@@ -2412,19 +2412,19 @@ export function ClientHomeDashboard({
                   type="button"
                   onClick={() => goToPage(safePage - 1)}
                   disabled={safePage <= 1}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyl-border bg-cyl-surface px-4 py-2 text-sm font-semibold text-cyl-ink backdrop-blur-sm transition hover:bg-cyl-surface-alt disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeftIcon />
                   {copy.prev}
                 </button>
-                <span className="min-w-28 text-center text-sm font-medium text-white/75">
+                <span className="min-w-28 text-center text-sm font-medium text-cyl-muted">
                   {copy.pageOf(safePage, totalPages)}
                 </span>
                 <button
                   type="button"
                   onClick={() => goToPage(safePage + 1)}
                   disabled={safePage >= totalPages}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/14 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyl-border bg-cyl-surface px-4 py-2 text-sm font-semibold text-cyl-ink backdrop-blur-sm transition hover:bg-cyl-surface-alt disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {copy.next}
                   <ChevronRightIcon />

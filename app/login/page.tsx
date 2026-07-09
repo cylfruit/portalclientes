@@ -7,6 +7,7 @@ import {
   readCsrfTokenFromCookies,
 } from "@/lib/auth";
 import { sanitizeNextPath } from "@/lib/auth-session";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -132,7 +133,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const logoutMessage = params.logged_out === "1" ? copy.logoutMessage : null;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#111111] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-cyl-bg text-cyl-ink">
       <div className="absolute inset-0">
         <Image
           src="/brand/bg_login.jpg"
@@ -143,6 +144,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           className="object-cover opacity-20"
         />
         <div className="absolute inset-0 bg-[linear-gradient(125deg,rgba(0,0,0,0.92),rgba(18,18,18,0.84),rgba(18,18,18,0.72))]" />
+      </div>
+
+      <div className="fixed right-4 top-4 z-20">
+        <ThemeToggle locale={locale} />
       </div>
 
       <div className="relative mx-auto grid min-h-screen max-w-screen-2xl gap-10 px-4 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-8">
@@ -203,7 +208,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           {errorMessage ? (
             <div
               role="alert"
-              className="mt-5 rounded-[1.15rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+              className="mt-5 rounded-[1.15rem] border border-cyl-error-text/30 bg-cyl-error-bg px-4 py-3 text-sm text-cyl-error-text"
             >
               {errorMessage}
             </div>
@@ -213,7 +218,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div
               role="status"
               aria-live="polite"
-              className="mt-5 rounded-[1.15rem] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+              className="mt-5 rounded-[1.15rem] border border-cyl-success/30 bg-cyl-success-bg px-4 py-3 text-sm text-cyl-success"
             >
               {logoutMessage}
             </div>
@@ -235,7 +240,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 name="username"
                 type="text"
                 autoComplete="username"
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
+                className="w-full rounded-2xl border border-cyl-border bg-cyl-surface px-4 py-3 text-sm text-cyl-ink outline-none transition placeholder:text-cyl-muted focus:border-cyl-action focus:ring-2 focus:ring-cyl-action/25"
                 placeholder={copy.usernamePlaceholder}
                 required
               />
@@ -249,7 +254,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 name="password"
                 type="password"
                 autoComplete="current-password"
-                className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/60 focus:ring-2 focus:ring-cyl-gold/30"
+                className="w-full rounded-2xl border border-cyl-border bg-cyl-surface px-4 py-3 text-sm text-cyl-ink outline-none transition placeholder:text-cyl-muted focus:border-cyl-action focus:ring-2 focus:ring-cyl-action/25"
                 placeholder={copy.passwordPlaceholder}
                 required
               />
@@ -257,7 +262,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[#111827] px-5 py-3 text-sm font-semibold text-white transition hover:bg-black"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-cyl-action px-5 py-3 text-sm font-semibold text-cyl-black transition hover:bg-cyl-action-hover"
             >
               {copy.submitLabel}
             </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PortalClientUser, PortalReceiver } from "@/lib/portal-data";
 
 const ROLE_OPTIONS = [
@@ -30,6 +30,22 @@ type PortalUserLocale = PortalClientUser["locale"];
 type PortalUserStatus = PortalClientUser["status"];
 type PortalUserModule = (typeof MODULE_OPTIONS)[number];
 type EditorMode = "create" | "edit";
+type ToastKind = "loading" | "success" | "error" | "warning" | "info";
+type ToastState = {
+  kind: ToastKind;
+  message: string;
+} | null;
+
+const FIELD_CLASS =
+  "w-full rounded-2xl border border-cyl-border bg-cyl-surface px-4 py-3 text-sm text-cyl-ink outline-none transition placeholder:text-cyl-muted focus:border-cyl-action focus:ring-2 focus:ring-cyl-action/25 disabled:cursor-not-allowed disabled:bg-cyl-surface-alt disabled:text-cyl-muted";
+const PRIMARY_BUTTON_CLASS =
+  "rounded-full border border-cyl-action bg-cyl-action px-5 py-3 text-sm font-semibold text-cyl-black transition hover:bg-cyl-action-hover disabled:cursor-not-allowed disabled:opacity-65";
+const SECONDARY_BUTTON_CLASS =
+  "rounded-full border border-cyl-border bg-cyl-surface px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:border-cyl-action/45 hover:bg-cyl-surface-alt disabled:cursor-not-allowed disabled:opacity-65";
+const SMALL_SECONDARY_BUTTON_CLASS =
+  "rounded-full border border-cyl-border bg-cyl-surface px-3 py-1.5 text-xs font-semibold text-cyl-ink transition hover:border-cyl-action/45 hover:bg-cyl-surface-alt disabled:cursor-not-allowed disabled:opacity-65";
+const SMALL_DANGER_BUTTON_CLASS =
+  "rounded-full border border-cyl-error-text/35 bg-cyl-error-bg px-3 py-1.5 text-xs font-semibold text-cyl-error-text transition hover:border-cyl-error-text/60 disabled:cursor-not-allowed disabled:opacity-65";
 
 type PortalUserFilters = {
   query: string;
@@ -120,12 +136,23 @@ function normalizeOptionalString(value: string) {
 function getUserStatusClasses(status: PortalUserStatus) {
   switch (status) {
     case "Activo":
-      return "bg-emerald-50 text-emerald-700";
+      return "border border-cyl-success/30 bg-cyl-success-bg text-cyl-success";
     case "Bloqueado":
-      return "bg-rose-50 text-rose-700";
+      return "border border-cyl-error-text/30 bg-cyl-error-bg text-cyl-error-text";
     default:
-      return "bg-amber-50 text-amber-700";
+      return "border border-cyl-warning-text/30 bg-cyl-warning-bg text-cyl-warning-text";
   }
+}
+
+function getStatusToggleLabel(
+  user: PortalClientUser,
+  pendingStatusUserId: string | null,
+) {
+  if (user.status === "Bloqueado") {
+    return "Reactivar";
+  }
+
+  return pendingStatusUserId === user.id ? "Confirmar bloqueo" : "Bloquear";
 }
 
 function buildUsersUrl(filters: PortalUserFilters) {
@@ -236,6 +263,49 @@ function buildMutationPayload(form: PortalUserFormState, mode: EditorMode) {
   return payload;
 }
 
+function PortalToast({
+  toast,
+  onClose,
+}: {
+  toast: ToastState;
+  onClose: () => void;
+}) {
+  if (!toast) {
+    return null;
+  }
+
+  const isAssertive = toast.kind === "error" || toast.kind === "warning";
+  const toneClass =
+    toast.kind === "success"
+      ? "border-cyl-success/35 bg-cyl-success-bg text-cyl-ink"
+      : toast.kind === "error"
+        ? "border-cyl-error-text/35 bg-cyl-error-bg text-cyl-error-text"
+        : toast.kind === "warning"
+          ? "border-cyl-warning-text/35 bg-cyl-warning-bg text-cyl-warning-text"
+          : "border-cyl-border bg-cyl-surface text-cyl-ink";
+
+  return (
+    <div
+      role={isAssertive ? "alert" : "status"}
+      aria-live={isAssertive ? "assertive" : "polite"}
+      className={`fixed right-4 top-24 z-[80] flex w-[calc(100vw-2rem)] max-w-md items-start gap-3 rounded-[1.25rem] border px-4 py-3 text-sm shadow-[var(--cyl-shadow-lg)] backdrop-blur ${toneClass}`}
+    >
+      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current/20">
+        {toast.kind === "loading" ? "..." : toast.kind === "success" ? "OK" : "!"}
+      </span>
+      <p className="min-w-0 flex-1 leading-6">{toast.message}</p>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cerrar notificacion"
+        className="rounded-full border border-current/20 px-2 py-1 text-xs font-semibold transition hover:bg-current/10"
+      >
+        Cerrar
+      </button>
+    </div>
+  );
+}
+
 export function PortalUsersAdmin({
   initialUsers,
   initialReceivers,
@@ -244,6 +314,8 @@ export function PortalUsersAdmin({
   receiverCatalogLabel,
   csrfToken,
 }: PortalUsersAdminProps) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const editorTitleRef = useRef<HTMLHeadingElement>(null);
   const [users, setUsers] = useState(initialUsers);
   const [filters, setFilters] = useState<PortalUserFilters>({
     query: "",
@@ -253,13 +325,23 @@ export function PortalUsersAdmin({
   const [dataSourceLabel, setDataSourceLabel] = useState(
     initialDataSourceLabel,
   );
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(
+    initialErrorMessage
+      ? {
+          kind: "warning",
+          message: initialErrorMessage,
+        }
+      : null,
+  );
   const [formError, setFormError] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>("create");
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [form, setForm] = useState<PortalUserFormState>(createEmptyForm());
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusUserId, setPendingStatusUserId] = useState<string | null>(
+    null,
+  );
   const activeUsers = users.filter((user) => user.status === "Activo").length;
   const enabledSecondFactor = users.filter((user) => user.twoFactor).length;
   const pendingUsers = users.filter(
@@ -303,9 +385,19 @@ export function PortalUsersAdmin({
       ).length
     : 0;
 
-  async function loadUsers(nextFilters = filters) {
+  function focusEditor() {
+    window.setTimeout(() => {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      editorTitleRef.current?.focus();
+    }, 0);
+  }
+
+  async function loadUsers(nextFilters = filters, showToast = false) {
     setIsLoading(true);
     setErrorMessage(null);
+    if (showToast) {
+      setToast({ kind: "loading", message: "Actualizando usuarios..." });
+    }
 
     try {
       const response = await fetch(buildUsersUrl(nextFilters), {
@@ -340,12 +432,17 @@ export function PortalUsersAdmin({
 
       setUsers(payload.items);
       setDataSourceLabel("ClickHouse");
+      if (showToast) {
+        setToast({ kind: "success", message: "Usuarios actualizados." });
+      }
     } catch (error) {
-      setErrorMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "No fue posible cargar los usuarios del portal.",
-      );
+          : "No fue posible cargar los usuarios del portal.";
+
+      setErrorMessage(message);
+      setToast({ kind: "error", message });
     } finally {
       setIsLoading(false);
     }
@@ -356,6 +453,7 @@ export function PortalUsersAdmin({
     setActiveUserId(null);
     setForm(createEmptyForm());
     setFormError(null);
+    setPendingStatusUserId(null);
   }
 
   function handleEdit(user: PortalClientUser) {
@@ -363,7 +461,9 @@ export function PortalUsersAdmin({
     setActiveUserId(user.id);
     setForm(createFormFromUser(user));
     setFormError(null);
-    setSuccessMessage(null);
+    setPendingStatusUserId(null);
+    setToast({ kind: "info", message: `Editando a ${user.fullName}.` });
+    focusEditor();
   }
 
   async function runMutation(
@@ -373,15 +473,18 @@ export function PortalUsersAdmin({
     nextEditorUserId: string | null,
   ) {
     if (!csrfToken) {
-      setFormError(
-        "No se encontro el token CSRF en la sesion actual. Recarga la pagina e intenta nuevamente.",
-      );
+      const message =
+        "No se encontro el token CSRF en la sesion actual. Recarga la pagina e intenta nuevamente.";
+
+      setFormError(message);
+      setToast({ kind: "error", message });
       return;
     }
 
     setIsSaving(true);
     setFormError(null);
-    setSuccessMessage(null);
+    setPendingStatusUserId(null);
+    setToast({ kind: "loading", message: "Guardando cambios..." });
 
     try {
       const response = await fetch(endpoint, {
@@ -432,7 +535,7 @@ export function PortalUsersAdmin({
         }
       }
 
-      setSuccessMessage(successText);
+      setToast({ kind: "success", message: successText });
 
       if (!nextEditorUserId) {
         resetEditor();
@@ -440,11 +543,13 @@ export function PortalUsersAdmin({
 
       await loadUsers(filters);
     } catch (error) {
-      setFormError(
+      const message =
         error instanceof Error
           ? error.message
-          : "No fue posible guardar el usuario del portal.",
-      );
+          : "No fue posible guardar el usuario del portal.";
+
+      setFormError(message);
+      setToast({ kind: "error", message });
     } finally {
       setIsSaving(false);
     }
@@ -477,6 +582,15 @@ export function PortalUsersAdmin({
 
   async function handleStatusToggle(user: PortalClientUser) {
     const nextStatus = user.status === "Bloqueado" ? "Activo" : "Bloqueado";
+    if (nextStatus === "Bloqueado" && pendingStatusUserId !== user.id) {
+      setPendingStatusUserId(user.id);
+      setToast({
+        kind: "warning",
+        message: `Presiona "Confirmar bloqueo" para bloquear a ${user.fullName}.`,
+      });
+      return;
+    }
+
     const successText =
       nextStatus === "Bloqueado"
         ? `Usuario ${user.username} bloqueado.`
@@ -495,26 +609,18 @@ export function PortalUsersAdmin({
 
   return (
     <div className="space-y-8">
-      {errorMessage ? (
-        <div
-          role="alert"
-          className="rounded-[1.4rem] border border-amber-200 bg-amber-50/95 px-5 py-4 text-sm text-amber-900 shadow-[0_14px_32px_rgba(146,64,14,0.08)]"
-        >
-          {errorMessage}
-        </div>
-      ) : null}
+      <PortalToast
+        toast={
+          toast ??
+          (errorMessage ? { kind: "warning", message: errorMessage } : null)
+        }
+        onClose={() => {
+          setToast(null);
+          setErrorMessage(null);
+        }}
+      />
 
-      {successMessage ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-[1.4rem] border border-emerald-200 bg-emerald-50/95 px-5 py-4 text-sm text-emerald-900 shadow-[0_14px_32px_rgba(6,95,70,0.08)]"
-        >
-          {successMessage}
-        </div>
-      ) : null}
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4">
         <article className="metric-card p-5">
           <p className="section-kicker text-cyl-gold">Usuarios activos</p>
           <p className="mt-4 text-4xl font-semibold text-cyl-ink">
@@ -556,8 +662,8 @@ export function PortalUsersAdmin({
         </article>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
-        <div className="panel p-6 sm:p-7">
+      <section className="grid gap-6 xl:grid-cols-[minmax(360px,0.88fr)_minmax(0,1.12fr)]">
+        <div ref={editorRef} className="panel order-2 p-6 sm:p-7 xl:order-1">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="section-kicker text-cyl-gold">
@@ -565,7 +671,11 @@ export function PortalUsersAdmin({
                   ? "Alta de usuario"
                   : "Edicion de acceso"}
               </p>
-              <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
+              <h2
+                ref={editorTitleRef}
+                tabIndex={-1}
+                className="mt-3 text-3xl font-semibold text-cyl-ink outline-none"
+              >
                 {editorMode === "create"
                   ? "Crear usuario cliente"
                   : "Editar usuario seleccionado"}
@@ -580,7 +690,7 @@ export function PortalUsersAdmin({
               <button
                 type="button"
                 onClick={resetEditor}
-                className="rounded-full border border-cyl-line px-4 py-2 text-sm font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong"
+                className={SECONDARY_BUTTON_CLASS}
               >
                 Nuevo usuario
               </button>
@@ -590,7 +700,7 @@ export function PortalUsersAdmin({
           {formError ? (
             <div
               role="alert"
-              className="mt-6 rounded-[1.2rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+              className="mt-6 rounded-[1.2rem] border border-cyl-error-text/30 bg-cyl-error-bg px-4 py-3 text-sm text-cyl-error-text"
             >
               {formError}
             </div>
@@ -598,9 +708,13 @@ export function PortalUsersAdmin({
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-full-name"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Nombre completo</span>
                 <input
+                  id="portal-user-full-name"
                   value={form.fullName}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -608,14 +722,20 @@ export function PortalUsersAdmin({
                       fullName: event.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                   placeholder="Nombre y apellido"
+                  autoComplete="name"
+                  required
                 />
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-username"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Username</span>
                 <input
+                  id="portal-user-username"
                   value={form.username}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -623,16 +743,23 @@ export function PortalUsersAdmin({
                       username: event.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                   placeholder="usuario_portal"
+                  autoComplete="username"
                   autoCapitalize="none"
                   autoCorrect="off"
+                  required
                 />
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-email"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Email</span>
                 <input
+                  id="portal-user-email"
+                  type="email"
                   value={form.email}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -640,19 +767,25 @@ export function PortalUsersAdmin({
                       email: event.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                   placeholder="cliente@empresa.com"
+                  autoComplete="email"
                   autoCapitalize="none"
+                  required
                 />
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-password"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>
                   {editorMode === "create"
                     ? "Password inicial"
                     : "Nueva password (opcional)"}
                 </span>
                 <input
+                  id="portal-user-password"
                   type="password"
                   value={form.password}
                   onChange={(event) =>
@@ -661,14 +794,21 @@ export function PortalUsersAdmin({
                       password: event.target.value,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                   placeholder="Minimo 10 caracteres"
+                  autoComplete="new-password"
+                  minLength={10}
+                  required={editorMode === "create"}
                 />
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-role"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Rol</span>
                 <select
+                  id="portal-user-role"
                   value={form.roleKey}
                   onChange={(event) => {
                     const nextRole = event.target.value as PortalUserRoleKey;
@@ -686,7 +826,7 @@ export function PortalUsersAdmin({
                             : false,
                     }));
                   }}
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                 >
                   {ROLE_OPTIONS.map((role) => (
                     <option key={role.value} value={role.value}>
@@ -696,9 +836,13 @@ export function PortalUsersAdmin({
                 </select>
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-locale"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Idioma</span>
                 <select
+                  id="portal-user-locale"
                   value={form.preferredLocale}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -706,7 +850,7 @@ export function PortalUsersAdmin({
                       preferredLocale: event.target.value as PortalUserLocale,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                 >
                   {LOCALE_OPTIONS.map((locale) => (
                     <option key={locale.value} value={locale.value}>
@@ -716,9 +860,13 @@ export function PortalUsersAdmin({
                 </select>
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink">
+              <label
+                htmlFor="portal-user-status"
+                className="space-y-2 text-sm font-medium text-cyl-ink"
+              >
                 <span>Estado</span>
                 <select
+                  id="portal-user-status"
                   value={form.status}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -726,7 +874,7 @@ export function PortalUsersAdmin({
                       status: event.target.value as PortalUserStatus,
                     }))
                   }
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                  className={FIELD_CLASS}
                 >
                   {STATUS_OPTIONS.map((status) => (
                     <option key={status} value={status}>
@@ -736,9 +884,13 @@ export function PortalUsersAdmin({
                 </select>
               </label>
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink md:col-span-2">
+              <label
+                htmlFor="portal-user-recipient"
+                className="space-y-2 text-sm font-medium text-cyl-ink md:col-span-2"
+              >
                 <span>Recibidor</span>
                 <select
+                  id="portal-user-recipient"
                   value={form.recipientCode}
                   onChange={(event) => {
                     const nextCode = event.target.value;
@@ -753,7 +905,7 @@ export function PortalUsersAdmin({
                     }));
                   }}
                   disabled={isGlobalScope}
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55 disabled:cursor-not-allowed disabled:bg-black/3 disabled:text-cyl-ink/40"
+                  className={FIELD_CLASS}
                 >
                   <option value="">Selecciona un recibidor</option>
                   {receiverOptions.map((receiver) => (
@@ -799,7 +951,7 @@ export function PortalUsersAdmin({
                     )}
                   </div>
 
-                  <div className="rounded-[1.2rem] border border-cyl-line bg-white p-4">
+                  <div className="rounded-[1.2rem] border border-cyl-border bg-cyl-surface p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyl-ink/45">
                       Usuarios vinculados
                     </p>
@@ -819,9 +971,13 @@ export function PortalUsersAdmin({
                 </div>
               ) : null}
 
-              <label className="space-y-2 text-sm font-medium text-cyl-ink md:col-span-2">
+              <label
+                htmlFor="portal-user-recipient-group"
+                className="space-y-2 text-sm font-medium text-cyl-ink md:col-span-2"
+              >
                 <span>Codigo grupo recibidor (opcional)</span>
                 <input
+                  id="portal-user-recipient-group"
                   value={form.recipientGroupCode}
                   onChange={(event) =>
                     setForm((current) => ({
@@ -830,7 +986,7 @@ export function PortalUsersAdmin({
                     }))
                   }
                   disabled={isGlobalScope || isClientScope}
-                  className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55 disabled:cursor-not-allowed disabled:bg-black/3 disabled:text-cyl-ink/40"
+                  className={FIELD_CLASS}
                   placeholder="Filtro adicional por grupo si aplica"
                 />
                 <p className="text-xs leading-5 text-cyl-ink/56">
@@ -901,7 +1057,7 @@ export function PortalUsersAdmin({
                   return (
                     <label
                       key={module}
-                      className="inline-flex items-center gap-3 rounded-[0.95rem] border border-cyl-line bg-white px-4 py-3 text-sm font-medium text-cyl-ink"
+                      className="inline-flex items-center gap-3 rounded-[0.95rem] border border-cyl-border bg-cyl-surface px-4 py-3 text-sm font-medium text-cyl-ink"
                     >
                       <input
                         type="checkbox"
@@ -947,7 +1103,7 @@ export function PortalUsersAdmin({
                   <button
                     type="button"
                     onClick={resetEditor}
-                    className="rounded-full border border-cyl-line px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong"
+                    className={SECONDARY_BUTTON_CLASS}
                   >
                     Cancelar
                   </button>
@@ -956,7 +1112,7 @@ export function PortalUsersAdmin({
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="rounded-full border border-cyl-gold/45 bg-cyl-gold px-5 py-3 text-sm font-semibold text-cyl-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-65"
+                  className={PRIMARY_BUTTON_CLASS}
                 >
                   {isSaving
                     ? "Guardando..."
@@ -969,7 +1125,7 @@ export function PortalUsersAdmin({
           </form>
         </div>
 
-        <div className="panel p-6 sm:p-7">
+        <div className="panel order-1 p-6 sm:p-7 xl:order-2">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="section-kicker text-cyl-gold">Mantenedor</p>
@@ -982,26 +1138,45 @@ export function PortalUsersAdmin({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => loadUsers(filters)}
-              disabled={isLoading}
-              className="rounded-full border border-cyl-line px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong disabled:cursor-not-allowed disabled:opacity-65"
-            >
-              {isLoading ? "Actualizando..." : "Recargar"}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  resetEditor();
+                  focusEditor();
+                }}
+                className={PRIMARY_BUTTON_CLASS}
+              >
+                Crear usuario
+              </button>
+              <button
+                type="button"
+                onClick={() => loadUsers(filters, true)}
+                disabled={isLoading}
+                className={SECONDARY_BUTTON_CLASS}
+              >
+                {isLoading ? "Actualizando..." : "Recargar"}
+              </button>
+            </div>
           </div>
 
           <form
+            role="search"
+            aria-label="Filtros de usuarios del portal"
+            aria-busy={isLoading}
             onSubmit={(event) => {
               event.preventDefault();
-              void loadUsers(filters);
+              void loadUsers(filters, true);
             }}
             className="mt-6 grid gap-4 md:grid-cols-[1fr_220px_auto]"
           >
-            <label className="space-y-2 text-sm font-medium text-cyl-ink">
+            <label
+              htmlFor="portal-users-query"
+              className="space-y-2 text-sm font-medium text-cyl-ink"
+            >
               <span>Buscar por nombre, email o username</span>
               <input
+                id="portal-users-query"
                 value={filters.query}
                 onChange={(event) =>
                   setFilters((current) => ({
@@ -1009,14 +1184,19 @@ export function PortalUsersAdmin({
                     query: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                className={FIELD_CLASS}
                 placeholder="RBC, admin, camila..."
+                autoComplete="off"
               />
             </label>
 
-            <label className="space-y-2 text-sm font-medium text-cyl-ink">
+            <label
+              htmlFor="portal-users-status"
+              className="space-y-2 text-sm font-medium text-cyl-ink"
+            >
               <span>Estado</span>
               <select
+                id="portal-users-status"
                 value={filters.status}
                 onChange={(event) =>
                   setFilters((current) => ({
@@ -1024,7 +1204,7 @@ export function PortalUsersAdmin({
                     status: event.target.value as PortalUserFilters["status"],
                   }))
                 }
-                className="w-full rounded-2xl border border-cyl-line bg-white px-4 py-3 text-sm text-cyl-ink outline-none transition focus:border-cyl-gold/55"
+                className={FIELD_CLASS}
               >
                 <option value="">Todos</option>
                 {STATUS_OPTIONS.map((status) => (
@@ -1039,7 +1219,7 @@ export function PortalUsersAdmin({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-full border border-cyl-gold/35 px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:bg-cyl-gold hover:text-cyl-black disabled:cursor-not-allowed disabled:opacity-65"
+                className={`${PRIMARY_BUTTON_CLASS} w-full`}
               >
                 Filtrar
               </button>
@@ -1051,9 +1231,9 @@ export function PortalUsersAdmin({
                     status: "",
                   } satisfies PortalUserFilters;
                   setFilters(nextFilters);
-                  void loadUsers(nextFilters);
+                  void loadUsers(nextFilters, true);
                 }}
-                className="rounded-full border border-cyl-line px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong"
+                className={SECONDARY_BUTTON_CLASS}
               >
                 Limpiar
               </button>
@@ -1061,13 +1241,151 @@ export function PortalUsersAdmin({
           </form>
 
           {users.length === 0 ? (
-            <div className="mt-6 rounded-[1.45rem] border border-dashed border-black/12 bg-[#fffdf8] px-5 py-4 text-sm text-cyl-ink/68">
-              No hay usuarios que coincidan con los filtros actuales. Ajusta la
-              busqueda o crea el primer acceso desde el formulario.
+            <div className="mt-6 rounded-[1.45rem] border border-dashed border-cyl-border bg-cyl-surface-alt px-5 py-5 text-sm text-cyl-ink/68">
+              <p className="text-base font-semibold text-cyl-ink">
+                No hay usuarios para estos filtros
+              </p>
+              <p className="mt-1 leading-6">
+                Ajusta la busqueda o crea el primer acceso desde el formulario.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextFilters = {
+                      query: "",
+                      status: "",
+                    } satisfies PortalUserFilters;
+                    setFilters(nextFilters);
+                    void loadUsers(nextFilters, true);
+                  }}
+                  className={SECONDARY_BUTTON_CLASS}
+                >
+                  Limpiar filtros
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetEditor();
+                    focusEditor();
+                  }}
+                  className={PRIMARY_BUTTON_CLASS}
+                >
+                  Crear usuario
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="table-shell mt-6 overflow-x-auto">
+            <>
+              <ul
+                className="mt-6 grid gap-3 lg:hidden"
+                aria-label="Usuarios del portal"
+              >
+                {users.map((user) => {
+                  const statusActionLabel = getStatusToggleLabel(
+                    user,
+                    pendingStatusUserId,
+                  );
+
+                  return (
+                    <li
+                      key={`mobile-${user.id}`}
+                      className={`rounded-[1.35rem] border p-4 shadow-[var(--cyl-shadow-sm)] ${
+                        activeUserId === user.id
+                          ? "border-cyl-action bg-cyl-brand-soft"
+                          : "border-cyl-border bg-cyl-surface"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-semibold text-cyl-ink">
+                            {user.fullName}
+                          </p>
+                          <p className="mt-1 truncate text-sm text-cyl-ink/62">
+                            {user.email}
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-cyl-muted">
+                            @{user.username}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${getUserStatusClasses(
+                            user.status,
+                          )}`}
+                        >
+                          {user.status}
+                        </span>
+                      </div>
+
+                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div className="rounded-2xl border border-cyl-border bg-cyl-surface-alt px-3 py-2">
+                          <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-muted">
+                            Recibidor
+                          </dt>
+                          <dd className="mt-1 text-cyl-ink">
+                            {user.recipientName}
+                          </dd>
+                          <dd className="mt-0.5 text-xs text-cyl-muted">
+                            {user.recipientCode} · {user.groupCode}
+                          </dd>
+                        </div>
+                        <div className="rounded-2xl border border-cyl-border bg-cyl-surface-alt px-3 py-2">
+                          <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-muted">
+                            Perfil
+                          </dt>
+                          <dd className="mt-1 text-cyl-ink">{user.role}</dd>
+                          <dd className="mt-0.5 text-xs text-cyl-muted">
+                            {user.scope} · {user.locale.toUpperCase()}
+                          </dd>
+                        </div>
+                        <div className="rounded-2xl border border-cyl-border bg-cyl-surface-alt px-3 py-2 sm:col-span-2">
+                          <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-cyl-muted">
+                            Modulos
+                          </dt>
+                          <dd className="mt-2 flex flex-wrap gap-2">
+                            {user.modules.map((module) => (
+                              <span
+                                key={`${user.id}-mobile-${module}`}
+                                className="rounded-full border border-cyl-brand/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
+                              >
+                                {module}
+                              </span>
+                            ))}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(user)}
+                          aria-label={`Editar a ${user.fullName}`}
+                          className={`${SMALL_SECONDARY_BUTTON_CLASS} justify-center sm:flex-1`}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleStatusToggle(user)}
+                          disabled={isSaving}
+                          aria-label={`${statusActionLabel} a ${user.fullName}`}
+                          className={`${
+                            user.status === "Bloqueado"
+                              ? SMALL_SECONDARY_BUTTON_CLASS
+                              : SMALL_DANGER_BUTTON_CLASS
+                          } justify-center sm:flex-1`}
+                        >
+                          {statusActionLabel}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="table-shell mt-6 hidden overflow-x-auto lg:block">
               <table>
+                <caption className="sr-only">Usuarios cargados en el portal</caption>
                 <thead>
                   <tr>
                     <th>Usuario</th>
@@ -1124,7 +1442,7 @@ export function PortalUsersAdmin({
                           {user.modules.map((module) => (
                             <span
                               key={`${user.id}-${module}`}
-                              className="rounded-full border border-cyl-gold/25 bg-white px-3 py-1 text-xs font-semibold text-cyl-ink"
+                              className="rounded-full border border-cyl-brand/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
                             >
                               {module}
                             </span>
@@ -1153,7 +1471,8 @@ export function PortalUsersAdmin({
                           <button
                             type="button"
                             onClick={() => handleEdit(user)}
-                            className="rounded-full border border-cyl-line px-3 py-1 text-xs font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong"
+                            aria-label={`Editar a ${user.fullName}`}
+                            className={SMALL_SECONDARY_BUTTON_CLASS}
                           >
                             Editar
                           </button>
@@ -1161,11 +1480,14 @@ export function PortalUsersAdmin({
                             type="button"
                             onClick={() => void handleStatusToggle(user)}
                             disabled={isSaving}
-                            className="rounded-full border border-cyl-line px-3 py-1 text-xs font-semibold text-cyl-ink transition hover:border-cyl-gold/45 hover:bg-cyl-paper-strong disabled:cursor-not-allowed disabled:opacity-65"
+                            aria-label={`${getStatusToggleLabel(user, pendingStatusUserId)} a ${user.fullName}`}
+                            className={
+                              user.status === "Bloqueado"
+                                ? SMALL_SECONDARY_BUTTON_CLASS
+                                : SMALL_DANGER_BUTTON_CLASS
+                            }
                           >
-                            {user.status === "Bloqueado"
-                              ? "Reactivar"
-                              : "Bloquear"}
+                            {getStatusToggleLabel(user, pendingStatusUserId)}
                           </button>
                         </div>
                       </td>
@@ -1173,7 +1495,8 @@ export function PortalUsersAdmin({
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </section>
