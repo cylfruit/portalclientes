@@ -75,7 +75,7 @@ const loginCopy: Record<
     formDescription:
       "Visualiza el estado de cada embarque, descarga documentos asociados y consulta informacion actualizada de salida y llegada.",
     usernameLabel: "Usuario",
-    usernamePlaceholder: "admin_portal",
+    usernamePlaceholder: "tu_usuario",
     passwordLabel: "Contrasena",
     passwordPlaceholder: "Tu clave del portal",
     submitLabel: "Entrar al portal",
@@ -92,7 +92,7 @@ const loginCopy: Record<
     formDescription:
       "View the status of each shipment, download related documents, and check updated departure and arrival information.",
     usernameLabel: "Username",
-    usernamePlaceholder: "admin_portal",
+    usernamePlaceholder: "your_username",
     passwordLabel: "Password",
     passwordPlaceholder: "Your portal password",
     submitLabel: "Enter portal",
