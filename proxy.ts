@@ -7,7 +7,10 @@ import {
   sanitizeNextPath,
   verifyPortalSessionToken,
 } from "@/lib/auth-session";
-import { SECURITY_HEADERS, getContentSecurityPolicy } from "@/lib/security-headers";
+import {
+  SECURITY_HEADERS,
+  getContentSecurityPolicy,
+} from "@/lib/security-headers";
 
 function isPublicPath(pathname: string) {
   return (
@@ -29,21 +32,51 @@ function isStaticAsset(pathname: string) {
   );
 }
 
+function createCspNonce() {
+  return btoa(crypto.randomUUID());
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const cspNonce = createCspNonce();
+  const contentSecurityPolicy = getContentSecurityPolicy(cspNonce);
+  const requestHeaders = new Headers(request.headers);
+
+  requestHeaders.set("x-nonce", cspNonce);
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
   function withSecurityHeaders(response: NextResponse): NextResponse {
     for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
       response.headers.set(key, value);
     }
-    if (!response.headers.has("Content-Security-Policy")) {
-      response.headers.set("Content-Security-Policy", getContentSecurityPolicy());
+    response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+
+    if (
+      response.status >= 300 &&
+      response.status < 400 &&
+      !response.headers.has("Content-Type")
+    ) {
+      response.headers.set("Content-Type", "text/plain; charset=utf-8");
     }
+
     return response;
   }
 
+  function nextWithSecurityHeaders() {
+    return withSecurityHeaders(
+      NextResponse.next({ request: { headers: requestHeaders } }),
+    );
+  }
+
+  if (pathname !== "/" && pathname.endsWith("/")) {
+    const normalizedUrl = new URL(request.url);
+    normalizedUrl.pathname = pathname.replace(/\/+$/, "");
+
+    return withSecurityHeaders(NextResponse.redirect(normalizedUrl, 308));
+  }
+
   if (isStaticAsset(pathname)) {
-    return withSecurityHeaders(NextResponse.next());
+    return nextWithSecurityHeaders();
   }
 
   const sessionToken = readSessionTokenFromRequest(request);
@@ -52,7 +85,9 @@ export async function proxy(request: NextRequest) {
     : null;
 
   if (isPublicPath(pathname)) {
-    return withSecurityHeaders(ensureCsrfCookie(request, NextResponse.next()));
+    return withSecurityHeaders(
+      ensureCsrfCookie(request, nextWithSecurityHeaders()),
+    );
   }
 
   if (!sessionClaims) {
@@ -90,7 +125,9 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  return withSecurityHeaders(ensureCsrfCookie(request, NextResponse.next()));
+  return withSecurityHeaders(
+    ensureCsrfCookie(request, nextWithSecurityHeaders()),
+  );
 }
 
 export const config = {

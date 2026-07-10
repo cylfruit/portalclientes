@@ -5,17 +5,49 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "credentialless",
   "Cross-Origin-Resource-Policy": "same-origin",
 };
 
 export function getContentSecurityPolicy(nonce?: string): string {
+  const connectSources = [
+    "'self'",
+    "https://*.tile.openstreetmap.org",
+    "https://*.basemaps.cartocdn.com",
+  ];
+
+  if (process.env.NODE_ENV !== "production") {
+    connectSources.push("http://localhost:1313");
+  }
+
+  const scriptSources = ["'self'"];
+
+  if (nonce) {
+    scriptSources.push(`'nonce-${nonce}'`);
+  } else if (process.env.NODE_ENV !== "production") {
+    scriptSources.push("'unsafe-inline'", "'unsafe-eval'");
+  }
+
+  const styleSources = ["'self'"];
+  const styleElementSources = ["'self'"];
+
+  if (nonce) {
+    styleElementSources.push(`'nonce-${nonce}'`);
+  } else if (process.env.NODE_ENV !== "production") {
+    styleSources.push("'unsafe-inline'");
+    styleElementSources.push("'unsafe-inline'");
+  }
+
   const directives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'" + (nonce ? ` 'nonce-${nonce}'` : ""),
-    "style-src 'self' 'unsafe-inline'",
+    `script-src ${scriptSources.join(" ")}`,
+    `style-src ${styleSources.join(" ")}`,
+    `style-src-elem ${styleElementSources.join(" ")}`,
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
     "font-src 'self' data:",
-    "connect-src 'self' http://localhost:1313 https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+    `connect-src ${connectSources.join(" ")}`,
+    "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

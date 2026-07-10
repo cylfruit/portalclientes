@@ -84,7 +84,7 @@ export function getSessionCookieOptions() {
 
 export function getCsrfCookieOptions() {
   return {
-    httpOnly: false,
+    httpOnly: true,
     sameSite: "lax" as const,
     secure: shouldUseSecureCookies(),
     path: "/",
@@ -136,19 +136,35 @@ export function isPortalAdminRole(roleKey: string | null | undefined) {
 }
 
 export function sanitizeNextPath(nextPath?: string | null) {
-  if (!nextPath || !nextPath.startsWith("/")) {
+  const candidate = nextPath?.trim();
+
+  if (!candidate || !candidate.startsWith("/")) {
     return "/";
   }
 
-  if (nextPath.startsWith("//") || nextPath.startsWith("/api")) {
+  if (candidate.startsWith("//") || candidate.includes("\\")) {
     return "/";
   }
 
-  if (nextPath.startsWith("/login")) {
+  if (/[\u0000-\u001F\u007F]/.test(candidate)) {
     return "/";
   }
 
-  return nextPath;
+  try {
+    const parsed = new URL(candidate, "https://portalclientes.local");
+    const sanitizedPath = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+
+    if (
+      sanitizedPath.startsWith("/api") ||
+      sanitizedPath.startsWith("/login")
+    ) {
+      return "/";
+    }
+
+    return sanitizedPath;
+  } catch {
+    return "/";
+  }
 }
 
 export function normalizeOrigin(value: string | null | undefined) {
