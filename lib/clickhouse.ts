@@ -72,6 +72,7 @@ const TRACKING_COLUMNS = [
   "origin_lat",
   "origin_lng",
   "destination_name",
+  "destination_actual",
   "destination_lat",
   "destination_lng",
   "destination_date",
@@ -450,15 +451,18 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
   const destinationLatitude = toNumberOrNull(row.destination_lat);
   const destinationLongitude = toNumberOrNull(row.destination_lng);
   const destinationName = toStringOrNull(row.destination_name) ?? "Destino";
+  const destinationActual = toBoolean(row.destination_actual);
 
   if (destinationLatitude !== null && destinationLongitude !== null) {
     pushTrackingRoutePoint(routePoints, seenPointKeys, {
       label: destinationName,
       latitude: destinationLatitude,
       longitude: destinationLongitude,
-      state: "planned",
+      state: destinationActual ? "completed" : "planned",
       date: toStringOrNull(row.destination_date),
-      description: "Destino informado por tracking",
+      description: destinationActual
+        ? "Arribo confirmado por tracking"
+        : "Destino informado por tracking",
     });
   }
 
@@ -503,6 +507,7 @@ function normalizeTrackingSnapshot(
     originLongitude: toNumberOrNull(row.origin_lng),
     destinationName:
       toStringOrNull(row.destination_name) ?? "Destino no informado",
+    destinationActual: toBoolean(row.destination_actual),
     destinationLatitude: toNumberOrNull(row.destination_lat),
     destinationLongitude: toNumberOrNull(row.destination_lng),
     etaReference:

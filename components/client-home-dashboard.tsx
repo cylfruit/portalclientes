@@ -357,8 +357,11 @@ function matchesDateRange(
   return true;
 }
 
-function shouldRenderShipmentInMap(shipment: ShipmentSummary) {
-  return shipment.status !== "Arribado";
+function shouldRenderShipmentInMap(
+  shipment: ShipmentSummary,
+  tracking: ContainerTrackingSnapshot | null,
+) {
+  return resolveShipmentDisplayStatus(shipment, tracking) !== "Arribado";
 }
 
 function normalizeSeasonFilterValue(value: string | null | undefined) {
@@ -474,6 +477,10 @@ function normalizeTrackingProgress(
   value: number | null | undefined,
   hasArrived: boolean,
 ) {
+  if (hasArrived) {
+    return 100;
+  }
+
   if (value == null) {
     return null;
   }
@@ -485,6 +492,35 @@ function normalizeTrackingProgress(
   }
 
   return normalized;
+}
+
+const FINAL_TRACKING_STATUS_CODES = new Set([
+  "ARRIVED",
+  "COMPLETED",
+  "DELIVERED",
+  "DESTINATION_ARRIVED",
+]);
+
+function isTrackingArrived(tracking: ContainerTrackingSnapshot | null) {
+  if (!tracking) {
+    return false;
+  }
+
+  return (
+    tracking.destinationActual ||
+    FINAL_TRACKING_STATUS_CODES.has(tracking.statusCode.trim().toUpperCase())
+  );
+}
+
+function resolveShipmentDisplayStatus(
+  shipment: ShipmentSummary,
+  tracking: ContainerTrackingSnapshot | null,
+): ShipmentSummary["status"] {
+  if (!tracking) {
+    return shipment.status;
+  }
+
+  return isTrackingArrived(tracking) ? "Arribado" : "En transito";
 }
 
 function formatFileSize(
@@ -592,6 +628,7 @@ function escapeCsvValue(value: string | number | null | undefined) {
 function downloadShipmentsAsCsv(
   shipments: ShipmentSummary[],
   locale: PortalLocale,
+  getTracking: (shipment: ShipmentSummary) => ContainerTrackingSnapshot | null,
 ) {
   const c = dashboardCopy[locale];
   const headers = [
@@ -622,7 +659,7 @@ function downloadShipmentsAsCsv(
       s.totalBoxes,
       s.etd,
       s.eta,
-      statusLabel(s.status, locale),
+      statusLabel(resolveShipmentDisplayStatus(s, getTracking(s)), locale),
     ]
       .map(escapeCsvValue)
       .join(";"),
@@ -1133,7 +1170,9 @@ function TrackingTimeline({
   // tracking !== null means the container is being actively tracked → it has departed
   const hasAtd =
     Boolean(shipment.atd && shipment.atd <= today) || tracking !== null;
-  const hasAta = Boolean(shipment.ata && shipment.ata <= today);
+  const hasAta = tracking
+    ? isTrackingArrived(tracking)
+    : Boolean(shipment.ata && shipment.ata <= today);
 
   // Actual departure date: prefer first completed routePoint from tracking events
   const trackingDeparturePoint = tracking?.routePoints?.find(
@@ -1149,7 +1188,11 @@ function TrackingTimeline({
 
   // Use tracking ETA if available (more accurate than internal DB ETD/ETA)
   const etaDisplay = hasAta
-    ? formatDate(shipment.ata, locale)
+    ? tracking?.etaReference
+      ? formatTrackingDate(tracking.etaReference, locale)
+      : shipment.ata
+        ? formatDate(shipment.ata, locale)
+        : null
     : tracking?.etaReference
       ? formatTrackingDate(tracking.etaReference, locale)
       : shipment.eta
@@ -1502,73 +1545,6 @@ export function ClientHomeDashboard({
     etdFrom ||
     etaFrom,
   );
-  const shipmentsBeforeStatusFilter = useMemo(() => {
-    return allShipments.filter((shipment) => {
-      return (
-        matchesSeasonFilter(shipment, selectedSeasonFilterValues) &&
-        matchesSearchField(shipment, normalizedSearchQuery, searchField) &&
-        matchesDateRange(shipment.etd, etdFrom, "") &&
-        matchesDateRange(shipment.eta, etaFrom, "")
-      );
-    });
-  }, [
-    allShipments,
-    normalizedSearchQuery,
-    searchField,
-    selectedSeasonFilterValues,
-    etdFrom,
-    etaFrom,
-  ]);
-  const filteredShipments = useMemo(() => {
-    if (!statusFilter) {
-      return shipmentsBeforeStatusFilter;
-    }
-
-    return shipmentsBeforeStatusFilter.filter(
-      (shipment) => shipment.status === statusFilter,
-    );
-  }, [shipmentsBeforeStatusFilter, statusFilter]);
-  const filteredShipmentKeys = useMemo(
-    () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
-    [filteredShipments],
-  );
-  const mapEligibleShipments = useMemo(
-    () =>
-      filteredShipments.filter((shipment) =>
-        shouldRenderShipmentInMap(shipment),
-      ),
-    [filteredShipments],
-  );
-  const mapEligibleShipmentKeys = useMemo(
-    () => new Set(mapEligibleShipments.map((shipment) => shipment.groupKey)),
-    [mapEligibleShipments],
-  );
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredShipments.length / PAGE_SIZE),
-  );
-  const safePage = Math.min(currentPage, totalPages);
-  const pagedShipments = useMemo(
-    () =>
-      filteredShipments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filteredShipments, safePage],
-  );
-
-  // ── Summary counts ────────────────────────────────────────────────────────
-  const { inTransitCount, arrivingSoonCount, docsReadyCount } = useMemo(() => {
-    return {
-      inTransitCount: shipmentsBeforeStatusFilter.filter(
-        (shipment) => shipment.status === "En transito",
-      ).length,
-      arrivingSoonCount: shipmentsBeforeStatusFilter.filter(
-        (shipment) => shipment.status === "Programado",
-      ).length,
-      docsReadyCount: shipmentsBeforeStatusFilter.filter(
-        (shipment) => shipment.status === "Arribado",
-      ).length,
-    };
-  }, [shipmentsBeforeStatusFilter]);
 
   // ── Tracking lookup ───────────────────────────────────────────────────────
   const trackingByContainer = useMemo(
@@ -1592,16 +1568,101 @@ export function ClientHomeDashboard({
     [vesselTrackingSnapshots],
   );
 
+  const getContainerTracking = useCallback(
+    (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      return (
+        trackingByContainer.get(normalizeContainerKey(shipment.container)) ?? null
+      );
+    },
+    [trackingByContainer],
+  );
+
   const getTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
       return (
-        trackingByContainer.get(normalizeContainerKey(shipment.container)) ??
+        getContainerTracking(shipment) ??
         trackingByVessel.get(normalizeVesselKey(shipment.vesselName)) ??
         null
       );
     },
-    [trackingByContainer, trackingByVessel],
+    [getContainerTracking, trackingByVessel],
   );
+
+  const shipmentsBeforeStatusFilter = useMemo(() => {
+    return allShipments.filter((shipment) => {
+      return (
+        matchesSeasonFilter(shipment, selectedSeasonFilterValues) &&
+        matchesSearchField(shipment, normalizedSearchQuery, searchField) &&
+        matchesDateRange(shipment.etd, etdFrom, "") &&
+        matchesDateRange(shipment.eta, etaFrom, "")
+      );
+    });
+  }, [
+    allShipments,
+    normalizedSearchQuery,
+    searchField,
+    selectedSeasonFilterValues,
+    etdFrom,
+    etaFrom,
+  ]);
+  const filteredShipments = useMemo(() => {
+    if (!statusFilter) {
+      return shipmentsBeforeStatusFilter;
+    }
+
+    return shipmentsBeforeStatusFilter.filter(
+      (shipment) =>
+        resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+        statusFilter,
+    );
+  }, [getContainerTracking, shipmentsBeforeStatusFilter, statusFilter]);
+  const filteredShipmentKeys = useMemo(
+    () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
+    [filteredShipments],
+  );
+  const mapEligibleShipments = useMemo(
+    () =>
+      filteredShipments.filter((shipment) =>
+        shouldRenderShipmentInMap(shipment, getContainerTracking(shipment)),
+      ),
+    [filteredShipments, getContainerTracking],
+  );
+  const mapEligibleShipmentKeys = useMemo(
+    () => new Set(mapEligibleShipments.map((shipment) => shipment.groupKey)),
+    [mapEligibleShipments],
+  );
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredShipments.length / PAGE_SIZE),
+  );
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedShipments = useMemo(
+    () =>
+      filteredShipments.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredShipments, safePage],
+  );
+
+  // ── Summary counts ────────────────────────────────────────────────────────
+  const { inTransitCount, arrivingSoonCount, docsReadyCount } = useMemo(() => {
+    return {
+      inTransitCount: shipmentsBeforeStatusFilter.filter(
+        (shipment) =>
+          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          "En transito",
+      ).length,
+      arrivingSoonCount: shipmentsBeforeStatusFilter.filter(
+        (shipment) =>
+          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          "Programado",
+      ).length,
+      docsReadyCount: shipmentsBeforeStatusFilter.filter(
+        (shipment) =>
+          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          "Arribado",
+      ).length,
+    };
+  }, [getContainerTracking, shipmentsBeforeStatusFilter]);
 
   // ── Tracked items for map ─────────────────────────────────────────────────
   const trackedItems = useMemo<TrackedShipmentItem[]>(() => {
@@ -1655,6 +1716,13 @@ export function ClientHomeDashboard({
 
     return getTracking(selectedMapShipment);
   }, [getTracking, selectedMapShipment]);
+  const selectedMapContainerTracking = useMemo(() => {
+    if (!selectedMapShipment) {
+      return null;
+    }
+
+    return getContainerTracking(selectedMapShipment);
+  }, [getContainerTracking, selectedMapShipment]);
   const handleMapSelection = useCallback((shipmentKey: string) => {
     setMapSelectedKey((previousKey) =>
       previousKey === shipmentKey ? null : shipmentKey,
@@ -2006,7 +2074,13 @@ export function ClientHomeDashboard({
 
           <button
             type="button"
-            onClick={() => downloadShipmentsAsCsv(filteredShipments, locale)}
+            onClick={() =>
+              downloadShipmentsAsCsv(
+                filteredShipments,
+                locale,
+                getContainerTracking,
+              )
+            }
             disabled={
               filteredShipments.length === 0 ||
               isLoadingSeason ||
@@ -2120,20 +2194,20 @@ export function ClientHomeDashboard({
           {selectedMapShipment ? (
             <div className="mt-3 rounded-[1.4rem] border border-cyl-border bg-cyl-surface/90 px-5 py-4 shadow-[var(--cyl-shadow-base)] backdrop-blur-sm">
               {(() => {
+                const selectedMapStatus = resolveShipmentDisplayStatus(
+                  selectedMapShipment,
+                  selectedMapContainerTracking,
+                );
                 const selectedMapProgress = normalizeTrackingProgress(
                   selectedMapTracking?.progressPercentage,
-                  selectedMapShipment.status === "Arribado",
+                  selectedMapStatus === "Arribado",
                 );
 
                 return (
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span
-                        className={shipmentStatusBadge(
-                          selectedMapShipment.status,
-                        )}
-                      >
-                        {statusLabel(selectedMapShipment.status, locale)}
+                      <span className={shipmentStatusBadge(selectedMapStatus)}>
+                        {statusLabel(selectedMapStatus, locale)}
                       </span>
                       <div>
                         <p className="text-sm font-semibold text-cyl-ink">
@@ -2294,7 +2368,12 @@ export function ClientHomeDashboard({
                     const isExpanded = expandedKey === shipment.groupKey;
                     const docsState =
                       shipmentDocsByKey[shipment.groupKey] ?? EMPTY_DOCS_STATE;
+                    const containerTracking = getContainerTracking(shipment);
                     const tracking = getTracking(shipment);
+                    const displayStatus = resolveShipmentDisplayStatus(
+                      shipment,
+                      containerTracking,
+                    );
 
                     const isMapSelected = mapSelectedKey === shipment.groupKey;
                     return (
@@ -2314,10 +2393,8 @@ export function ClientHomeDashboard({
                               {shipment.id}
                             </p>
                             <div className="mt-1">
-                              <span
-                                className={shipmentStatusBadge(shipment.status)}
-                              >
-                                {statusLabel(shipment.status, locale)}
+                              <span className={shipmentStatusBadge(displayStatus)}>
+                                {statusLabel(displayStatus, locale)}
                               </span>
                             </div>
                           </td>

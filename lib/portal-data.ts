@@ -114,6 +114,7 @@ export type ContainerTrackingSnapshot = {
   originLatitude: number | null;
   originLongitude: number | null;
   destinationName: string;
+  destinationActual: boolean;
   destinationLatitude: number | null;
   destinationLongitude: number | null;
   etaReference: string | null;
