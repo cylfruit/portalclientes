@@ -429,22 +429,52 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
 
   const currentLatitude = toNumberOrNull(row.location_lat);
   const currentLongitude = toNumberOrNull(row.location_lng);
-  const currentLocationName =
-    toStringOrNull(row.last_event_location_name) ??
-    toStringOrNull(row.destination_name) ??
-    "Posicion actual";
+  const locationSource = toStringOrNull(row.location_source);
+
+  const { currentLabel, currentDescription, currentDate } = (() => {
+    switch (locationSource) {
+      case "PROGRESS_ESTIMATE":
+        return {
+          currentLabel: "Posicion estimada",
+          currentDescription: "Posicion estimada por avance del tracking",
+          currentDate: toStringOrNull(row.tracked_at),
+        };
+      case "CURRENT_POSITION": {
+        const vesselLabel = toStringOrNull(row.vessel_name);
+        return {
+          currentLabel: vesselLabel
+            ? `En navegacion - ${vesselLabel}`
+            : "Posicion AIS",
+          currentDescription: "Posicion satelital en tiempo real",
+          currentDate:
+            toStringOrNull(row.last_event_date) ??
+            toStringOrNull(row.tracked_at),
+        };
+      }
+      default:
+        return {
+          currentLabel:
+            toStringOrNull(row.last_event_location_name) ??
+            toStringOrNull(row.destination_name) ??
+            "Posicion actual",
+          currentDescription:
+            toStringOrNull(row.last_event_description) ??
+            "Ultima posicion reportada",
+          currentDate:
+            toStringOrNull(row.last_event_date) ??
+            toStringOrNull(row.tracked_at),
+        };
+    }
+  })();
 
   if (currentLatitude !== null && currentLongitude !== null) {
     pushTrackingRoutePoint(routePoints, seenPointKeys, {
-      label: currentLocationName,
+      label: currentLabel,
       latitude: currentLatitude,
       longitude: currentLongitude,
       state: "active",
-      date:
-        toStringOrNull(row.last_event_date) ?? toStringOrNull(row.tracked_at),
-      description:
-        toStringOrNull(row.last_event_description) ??
-        "Ultima posicion reportada",
+      date: currentDate,
+      description: currentDescription,
     });
   }
 

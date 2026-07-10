@@ -10,13 +10,14 @@ export const SECURITY_HEADERS: Record<string, string> = {
 };
 
 export function getContentSecurityPolicy(nonce?: string): string {
+  const isDevelopment = process.env.NODE_ENV !== "production";
   const connectSources = [
     "'self'",
     "https://*.tile.openstreetmap.org",
     "https://*.basemaps.cartocdn.com",
   ];
 
-  if (process.env.NODE_ENV !== "production") {
+  if (isDevelopment) {
     connectSources.push("http://localhost:1313");
   }
 
@@ -24,7 +25,9 @@ export function getContentSecurityPolicy(nonce?: string): string {
 
   if (nonce) {
     scriptSources.push(`'nonce-${nonce}'`);
-  } else if (process.env.NODE_ENV !== "production") {
+  }
+
+  if (isDevelopment) {
     scriptSources.push("'unsafe-inline'", "'unsafe-eval'");
   }
 
@@ -33,7 +36,9 @@ export function getContentSecurityPolicy(nonce?: string): string {
 
   if (nonce) {
     styleElementSources.push(`'nonce-${nonce}'`);
-  } else if (process.env.NODE_ENV !== "production") {
+  }
+
+  if (isDevelopment) {
     styleSources.push("'unsafe-inline'");
     styleElementSources.push("'unsafe-inline'");
   }

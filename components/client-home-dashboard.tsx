@@ -364,6 +364,73 @@ function shouldRenderShipmentInMap(
   return resolveShipmentDisplayStatus(shipment, tracking) !== "Arribado";
 }
 
+function normalizeRouteMatchText(value: string | null | undefined) {
+  const normalized = (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (token) =>
+        token.length >= 3 &&
+        ![
+          "pto",
+          "puer",
+          "puerto",
+          "port",
+          "terminal",
+          "sin",
+          "destino",
+          "origen",
+        ].includes(token),
+    );
+
+  return Array.from(new Set(normalized));
+}
+
+function routeNamesMatch(
+  shipmentValue: string | null | undefined,
+  trackingValue: string | null | undefined,
+) {
+  const shipmentTokens = normalizeRouteMatchText(shipmentValue);
+  const trackingTokens = normalizeRouteMatchText(trackingValue);
+
+  if (shipmentTokens.length === 0 || trackingTokens.length === 0) {
+    return true;
+  }
+
+  return shipmentTokens.some((shipmentToken) =>
+    trackingTokens.some(
+      (trackingToken) =>
+        shipmentToken === trackingToken ||
+        shipmentToken.includes(trackingToken) ||
+        trackingToken.includes(shipmentToken),
+    ),
+  );
+}
+
+function isTrackingRouteCompatible(
+  shipment: ShipmentSummary,
+  tracking: ContainerTrackingSnapshot,
+) {
+  const shipmentDestinationTokens = normalizeRouteMatchText(
+    shipment.destinationPort,
+  );
+  const trackingDestinationTokens = normalizeRouteMatchText(
+    tracking.destinationName,
+  );
+
+  if (
+    shipmentDestinationTokens.length > 0 &&
+    trackingDestinationTokens.length > 0
+  ) {
+    return routeNamesMatch(shipment.destinationPort, tracking.destinationName);
+  }
+
+  return routeNamesMatch(shipment.originPort, tracking.originName);
+}
+
 function normalizeSeasonFilterValue(value: string | null | undefined) {
   return (value ?? "").trim().toLowerCase();
 }
@@ -1570,22 +1637,37 @@ export function ClientHomeDashboard({
 
   const getContainerTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
-      return (
-        trackingByContainer.get(normalizeContainerKey(shipment.container)) ?? null
-      );
+      const tracking =
+        trackingByContainer.get(normalizeContainerKey(shipment.container)) ?? null;
+
+      if (!tracking || !isTrackingRouteCompatible(shipment, tracking)) {
+        return null;
+      }
+
+      return tracking;
     },
     [trackingByContainer],
   );
 
+  const getVesselTracking = useCallback(
+    (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      const tracking =
+        trackingByVessel.get(normalizeVesselKey(shipment.vesselName)) ?? null;
+
+      if (!tracking || !isTrackingRouteCompatible(shipment, tracking)) {
+        return null;
+      }
+
+      return tracking;
+    },
+    [trackingByVessel],
+  );
+
   const getTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
-      return (
-        getContainerTracking(shipment) ??
-        trackingByVessel.get(normalizeVesselKey(shipment.vesselName)) ??
-        null
-      );
+      return getContainerTracking(shipment) ?? getVesselTracking(shipment);
     },
-    [getContainerTracking, trackingByVessel],
+    [getContainerTracking, getVesselTracking],
   );
 
   const shipmentsBeforeStatusFilter = useMemo(() => {
@@ -1668,9 +1750,7 @@ export function ClientHomeDashboard({
   const trackedItems = useMemo<TrackedShipmentItem[]>(() => {
     return mapEligibleShipments.reduce<TrackedShipmentItem[]>(
       (acc, shipment) => {
-        const byContainer = trackingByContainer.get(
-          normalizeContainerKey(shipment.container),
-        );
+        const byContainer = getContainerTracking(shipment);
 
         if (byContainer) {
           acc.push({
@@ -1681,9 +1761,7 @@ export function ClientHomeDashboard({
           return acc;
         }
 
-        const byVessel = trackingByVessel.get(
-          normalizeVesselKey(shipment.vesselName),
-        );
+        const byVessel = getVesselTracking(shipment);
 
         if (byVessel) {
           acc.push({
@@ -1697,7 +1775,7 @@ export function ClientHomeDashboard({
       },
       [],
     );
-  }, [mapEligibleShipments, trackingByContainer, trackingByVessel]);
+  }, [getContainerTracking, getVesselTracking, mapEligibleShipments]);
   const selectedMapShipment = useMemo(() => {
     if (!mapSelectedKey) {
       return null;

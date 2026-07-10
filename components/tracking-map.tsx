@@ -69,10 +69,16 @@ const ROUTE_COLOR_PALETTE = [
 const trackingMapCopy = {
   es: {
     approximateVesselPosition: "Posicion aproximada resuelta por nave",
+    progressEstimatedPosition: "Posicion estimada por avance",
+    liveAisPosition: "Posicion satelital en tiempo real (AIS)",
+    lastKnownEvent: "Ultimo evento",
     clickForDetails: "Haz clic para ver detalle",
   },
   en: {
     approximateVesselPosition: "Approximate position resolved by vessel",
+    progressEstimatedPosition: "Position estimated by progress",
+    liveAisPosition: "Real-time satellite position (AIS)",
+    lastKnownEvent: "Last event",
     clickForDetails: "Click to view details",
   },
 } as const;
@@ -341,10 +347,27 @@ const TrackingMapComponent = ({
                           ? `${tracking.vesselName} · EMB ${shipment.id}`
                           : `${shipment.container} · EMB ${shipment.id}`}
                       </p>
-                      <p className="text-xs opacity-85">
-                        {tracking.lastEventLocationName ??
-                          tracking.destinationName}
-                      </p>
+                      {tracking.locationSource === "CURRENT_POSITION" ? (
+                        <p className="text-xs opacity-85">
+                          {copy.liveAisPosition}
+                        </p>
+                      ) : tracking.locationSource === "PROGRESS_ESTIMATE" ? (
+                        <>
+                          <p className="text-xs opacity-85">
+                            {copy.progressEstimatedPosition}
+                          </p>
+                          {tracking.lastEventLocationName ? (
+                            <p className="text-xs opacity-85">
+                              {copy.lastKnownEvent}: {tracking.lastEventLocationName}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="text-xs opacity-85">
+                          {tracking.lastEventLocationName ??
+                            tracking.destinationName}
+                        </p>
+                      )}
                       {trackingMatchScope === "vessel" ? (
                         <p className="text-xs opacity-85">
                           {copy.approximateVesselPosition}
