@@ -1383,15 +1383,15 @@ export function PortalUsersAdmin({
                 })}
               </ul>
 
-              <div className="table-shell mt-6 hidden overflow-x-auto lg:block">
-              <table>
+              <div className="table-shell mt-6 hidden max-w-full overflow-x-auto lg:block">
+              <table className="min-w-[900px]">
                 <caption className="sr-only">Usuarios cargados en el portal</caption>
                 <thead>
                   <tr>
-                    <th>Usuario</th>
-                    <th>Recibidor</th>
+                    <th className="min-w-[180px]">Usuario</th>
+                    <th className="min-w-[170px]">Recibidor</th>
                     <th>Perfil</th>
-                    <th>Modulos</th>
+                    <th className="min-w-[140px]">Modulos</th>
                     <th>Estado</th>
                     <th>Ultimo acceso</th>
                     <th>Acciones</th>
@@ -1409,10 +1409,10 @@ export function PortalUsersAdmin({
                         <div className="font-semibold text-cyl-ink">
                           {user.fullName}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.email}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.username}
                         </div>
                       </td>
@@ -1420,10 +1420,10 @@ export function PortalUsersAdmin({
                         <div className="font-semibold text-cyl-ink">
                           {user.recipientName}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.recipientCode} · {user.groupCode}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.canViewAll
                             ? "Vista global habilitada"
                             : "Filtrado por recibidor"}
@@ -1433,16 +1433,16 @@ export function PortalUsersAdmin({
                         <div className="font-semibold text-cyl-ink">
                           {user.role}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.scope} · Idioma {user.locale.toUpperCase()}
                         </div>
                       </td>
                       <td>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1">
                           {user.modules.map((module) => (
                             <span
                               key={`${user.id}-${module}`}
-                              className="rounded-full border border-cyl-brand/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
+                              className="rounded-full border border-cyl-brand/25 bg-cyl-surface px-2.5 py-0.5 text-xs font-semibold text-cyl-ink"
                             >
                               {module}
                             </span>
@@ -1451,7 +1451,7 @@ export function PortalUsersAdmin({
                       </td>
                       <td>
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getUserStatusClasses(
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getUserStatusClasses(
                             user.status,
                           )}`}
                         >
@@ -1462,12 +1462,12 @@ export function PortalUsersAdmin({
                         <div className="font-semibold text-cyl-ink">
                           {user.lastAccess}
                         </div>
-                        <div className="mt-1 text-sm text-cyl-ink/60">
+                        <div className="mt-0.5 text-sm text-cyl-ink/60">
                           {user.twoFactor ? "2FA activo" : "Sin 2FA"}
                         </div>
                       </td>
                       <td>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col gap-2 xl:flex-row">
                           <button
                             type="button"
                             onClick={() => handleEdit(user)}

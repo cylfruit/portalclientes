@@ -1098,7 +1098,7 @@ function ShipmentDocumentsGrid({
         {state.items.map((doc) => (
           <div
             key={doc.id}
-            className="rounded-[1.1rem] border border-cyl-border bg-cyl-surface px-4 py-4 shadow-[var(--cyl-shadow-sm)]"
+            className="min-w-0 rounded-[1.1rem] border border-cyl-border bg-cyl-surface px-4 py-4 shadow-[var(--cyl-shadow-sm)]"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-2">
@@ -1185,7 +1185,7 @@ function ShipmentCourierCard({
                 {copy.courierNotRequired}
               </p>
             ) : (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className="rounded-2xl border border-cyl-border bg-cyl-surface/75 px-3 py-2">
                   <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-cyl-muted">
                     {copy.courierCompany}
@@ -1445,18 +1445,18 @@ function ShipmentExpandedRow({
   ];
 
   return (
-    <div className="px-4 pb-5 pt-2">
-      <div className="rounded-3xl border border-cyl-border bg-cyl-surface-alt p-5 shadow-[var(--cyl-shadow-base)]">
+    <div className="max-w-full overflow-hidden px-4 pb-5 pt-2">
+      <div className="min-w-0 rounded-3xl border border-cyl-border bg-cyl-surface-alt p-5 shadow-[var(--cyl-shadow-base)]">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-cyl-line pb-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyl-ink/55">
               EMB {shipment.id} · {shipment.season}
             </p>
-            <p className="mt-1 text-base font-semibold text-cyl-ink">
+            <p className="mt-1 truncate text-base font-semibold text-cyl-ink">
               {shipment.vesselName} · {shipment.container}
             </p>
-            <p className="mt-0.5 text-sm text-cyl-ink/60">
+            <p className="mt-0.5 truncate text-sm text-cyl-ink/60">
               {shipment.originPort} → {shipment.destinationPort} ·{" "}
               {shipment.shippingLine}
             </p>
@@ -1473,7 +1473,7 @@ function ShipmentExpandedRow({
 
         <div className="mt-5 grid gap-6 lg:grid-cols-2">
           {/* Tracking + metadata */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <TrackingTimeline
               shipment={shipment}
               tracking={tracking}
@@ -1494,7 +1494,7 @@ function ShipmentExpandedRow({
           </div>
 
           {/* Document center */}
-          <div>
+          <div className="min-w-0 overflow-hidden">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-cyl-ink/70">
                 <FileIcon />
@@ -1694,10 +1694,10 @@ export function ClientHomeDashboard({
 
     return shipmentsBeforeStatusFilter.filter(
       (shipment) =>
-        resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+        resolveShipmentDisplayStatus(shipment, getTracking(shipment)) ===
         statusFilter,
     );
-  }, [getContainerTracking, shipmentsBeforeStatusFilter, statusFilter]);
+  }, [getTracking, shipmentsBeforeStatusFilter, statusFilter]);
   const filteredShipmentKeys = useMemo(
     () => new Set(filteredShipments.map((shipment) => shipment.groupKey)),
     [filteredShipments],
@@ -1705,9 +1705,9 @@ export function ClientHomeDashboard({
   const mapEligibleShipments = useMemo(
     () =>
       filteredShipments.filter((shipment) =>
-        shouldRenderShipmentInMap(shipment, getContainerTracking(shipment)),
+        shouldRenderShipmentInMap(shipment, getTracking(shipment)),
       ),
-    [filteredShipments, getContainerTracking],
+    [filteredShipments, getTracking],
   );
   const mapEligibleShipmentKeys = useMemo(
     () => new Set(mapEligibleShipments.map((shipment) => shipment.groupKey)),
@@ -1730,21 +1730,21 @@ export function ClientHomeDashboard({
     return {
       inTransitCount: shipmentsBeforeStatusFilter.filter(
         (shipment) =>
-          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          resolveShipmentDisplayStatus(shipment, getTracking(shipment)) ===
           "En transito",
       ).length,
       arrivingSoonCount: shipmentsBeforeStatusFilter.filter(
         (shipment) =>
-          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          resolveShipmentDisplayStatus(shipment, getTracking(shipment)) ===
           "Programado",
       ).length,
       docsReadyCount: shipmentsBeforeStatusFilter.filter(
         (shipment) =>
-          resolveShipmentDisplayStatus(shipment, getContainerTracking(shipment)) ===
+          resolveShipmentDisplayStatus(shipment, getTracking(shipment)) ===
           "Arribado",
       ).length,
     };
-  }, [getContainerTracking, shipmentsBeforeStatusFilter]);
+  }, [getTracking, shipmentsBeforeStatusFilter]);
 
   // ── Tracked items for map ─────────────────────────────────────────────────
   const trackedItems = useMemo<TrackedShipmentItem[]>(() => {
@@ -1794,13 +1794,6 @@ export function ClientHomeDashboard({
 
     return getTracking(selectedMapShipment);
   }, [getTracking, selectedMapShipment]);
-  const selectedMapContainerTracking = useMemo(() => {
-    if (!selectedMapShipment) {
-      return null;
-    }
-
-    return getContainerTracking(selectedMapShipment);
-  }, [getContainerTracking, selectedMapShipment]);
   const handleMapSelection = useCallback((shipmentKey: string) => {
     setMapSelectedKey((previousKey) =>
       previousKey === shipmentKey ? null : shipmentKey,
@@ -2156,7 +2149,7 @@ export function ClientHomeDashboard({
               downloadShipmentsAsCsv(
                 filteredShipments,
                 locale,
-                getContainerTracking,
+                getTracking,
               )
             }
             disabled={
@@ -2274,7 +2267,7 @@ export function ClientHomeDashboard({
               {(() => {
                 const selectedMapStatus = resolveShipmentDisplayStatus(
                   selectedMapShipment,
-                  selectedMapContainerTracking,
+                  selectedMapTracking,
                 );
                 const selectedMapProgress = normalizeTrackingProgress(
                   selectedMapTracking?.progressPercentage,
@@ -2446,11 +2439,10 @@ export function ClientHomeDashboard({
                     const isExpanded = expandedKey === shipment.groupKey;
                     const docsState =
                       shipmentDocsByKey[shipment.groupKey] ?? EMPTY_DOCS_STATE;
-                    const containerTracking = getContainerTracking(shipment);
                     const tracking = getTracking(shipment);
                     const displayStatus = resolveShipmentDisplayStatus(
                       shipment,
-                      containerTracking,
+                      tracking,
                     );
 
                     const isMapSelected = mapSelectedKey === shipment.groupKey;
@@ -2537,7 +2529,7 @@ export function ClientHomeDashboard({
                             id={`details-${shipment.groupKey}`}
                             className="docs-expansion"
                           >
-                            <td colSpan={5} className="p-0">
+                            <td colSpan={5} className="overflow-hidden p-0">
                               <ShipmentExpandedRow
                                 shipment={shipment}
                                 tracking={tracking}

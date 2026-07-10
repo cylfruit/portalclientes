@@ -200,8 +200,10 @@ body {
   background: rgba(242, 198, 92, 0.32);
 }
 
-a {
-  color: inherit;
+@layer base {
+  a {
+    color: inherit;
+  }
 }
 
 :focus-visible {

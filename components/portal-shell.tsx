@@ -194,14 +194,6 @@ export async function PortalShell({
                 </span>
                 {displayUserName}
               </div>
-              {canManageUsers ? (
-                <Link
-                  href="/usuarios"
-                  className="rounded-full border border-white/20 bg-white/6 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-                >
-                  {copy.users}
-                </Link>
-              ) : null}
               <form action="/api/auth/logout" method="post">
                 <input type="hidden" name="csrfToken" value={csrfToken ?? ""} />
                 <button

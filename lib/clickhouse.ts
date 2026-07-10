@@ -876,8 +876,7 @@ function buildContainerTrackingQuery(containerNumbers: string[]) {
     ")",
     `SELECT ${TRACKING_COLUMNS.join(", ")}`,
     "FROM latest_by_container",
-    "WHERE ifNull(tracking_finished, toUInt8(0)) != 1",
-    "  AND location_lat IS NOT NULL",
+    "WHERE location_lat IS NOT NULL",
     "  AND location_lng IS NOT NULL",
     "FORMAT JSON",
   ].join("\n");

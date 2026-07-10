@@ -9,7 +9,6 @@ import {
   type PortalClientUser,
   type PortalReceiver,
   portalUserRoleBlueprint,
-  portalUserSchema,
 } from "@/lib/portal-data";
 
 export const dynamic = "force-dynamic";
@@ -169,123 +168,43 @@ export default async function UsersPage() {
         csrfToken={csrfToken}
       />
 
-      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
-          <div className="panel p-6 sm:p-7">
-            <p className="section-kicker text-cyl-gold">Perfiles sugeridos</p>
-            <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
-              Roles alineados al negocio
-            </h2>
-            <div className="mt-6 space-y-4">
-              {portalUserRoleBlueprint.map((profile) => (
-                <article
-                  key={profile.name}
-                  className="rounded-[1.4rem] border border-cyl-line bg-cyl-paper-strong/65 p-5"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-cyl-ink">
-                        {profile.name}
-                      </h3>
-                      <p className="mt-2 text-sm leading-6 text-cyl-ink/70">
-                        {profile.description}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-cyl-graphite px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyl-gold">
-                      {profile.scope}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {profile.modules.map((module) => (
-                      <span
-                        key={`${profile.name}-${module}`}
-                        className="rounded-full border border-cyl-gold/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
-                      >
-                        {module}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="panel p-6 sm:p-7">
-            <p className="section-kicker text-cyl-gold">Modelo tecnico</p>
-            <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
-              Campos para la tabla de accesos
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-cyl-ink/72">
-              Referencia de campos persistidos para los usuarios de recibidores,
-              integrados con autenticacion JWT, CSRF y filtros directos sobre el
-              portal.
-            </p>
-
-            <div className="table-shell mt-6 overflow-x-auto">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Campo</th>
-                    <th>Tipo</th>
-                    <th>Uso</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {portalUserSchema.map((field) => (
-                    <tr key={field.name}>
-                      <td>
-                        <div className="font-semibold text-cyl-ink">
-                          {field.name}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="font-semibold text-cyl-ink">
-                          {field.type}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="text-sm leading-6 text-cyl-ink/72">
-                          {field.purpose}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
+      <section className="space-y-6">
         <div className="panel p-6 sm:p-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="section-kicker text-cyl-gold">Operacion</p>
-              <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
-                Accesos conectados al portal
-              </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-cyl-ink/72">
-                Los formularios y acciones de esta pantalla llaman a las APIs
-                internas del portal usando la sesion activa y el token CSRF.
-              </p>
-            </div>
-
-            <Link
-              href="/"
-              className="rounded-full border border-cyl-gold/35 px-5 py-3 text-sm font-semibold text-cyl-ink transition hover:bg-cyl-gold hover:text-cyl-black"
-            >
-              Ver embarques
-            </Link>
-          </div>
-
-          <div className="mt-6 rounded-[1.4rem] border border-cyl-line bg-cyl-paper-strong/55 p-5 text-sm leading-6 text-cyl-ink/72">
-            <p>
-              Usa el formulario para crear cuentas nuevas, editar perfiles o
-              bloquear accesos sin salir del panel.
-            </p>
-            <p className="mt-3">
-              La lectura y las mutaciones consumen `/api/portal-users` y
-              `/api/portal-users/[userId]` dentro del mismo proyecto.
-            </p>
+          <p className="section-kicker text-cyl-gold">Perfiles sugeridos</p>
+          <h2 className="mt-3 text-3xl font-semibold text-cyl-ink">
+            Roles alineados al negocio
+          </h2>
+          <div className="mt-6 space-y-4">
+            {portalUserRoleBlueprint.map((profile) => (
+              <article
+                key={profile.name}
+                className="rounded-[1.4rem] border border-cyl-line bg-cyl-paper-strong/65 p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-cyl-ink">
+                      {profile.name}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-cyl-ink/70">
+                      {profile.description}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-cyl-graphite px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyl-gold">
+                    {profile.scope}
+                  </span>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {profile.modules.map((module) => (
+                    <span
+                      key={`${profile.name}-${module}`}
+                      className="rounded-full border border-cyl-gold/25 bg-cyl-surface px-3 py-1 text-xs font-semibold text-cyl-ink"
+                    >
+                      {module}
+                    </span>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
