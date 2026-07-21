@@ -199,6 +199,9 @@ const dashboardCopy = {
     arrivedLabel: "Arribado",
     scheduledLabel: "Por zarpar",
     inTransitLabel: "En tránsito",
+    airLabel: "AÉREO",
+    landLabel: "TERRESTRE",
+    nationalLabel: "NACIONAL",
     originPort: "Puerto origen",
     destinationPort: "Puerto destino",
     pageOf: (page: number, total: number) => `Pág. ${page} de ${total}`,
@@ -296,6 +299,9 @@ const dashboardCopy = {
     arrivedLabel: "Arrived",
     scheduledLabel: "Scheduled",
     inTransitLabel: "In transit",
+    airLabel: "AIR",
+    landLabel: "LAND",
+    nationalLabel: "NATIONAL",
     originPort: "Origin port",
     destinationPort: "Destination port",
     pageOf: (page: number, total: number) => `Pg. ${page} of ${total}`,
@@ -362,6 +368,12 @@ function shouldRenderShipmentInMap(
   tracking: ContainerTrackingSnapshot | null,
 ) {
   return resolveShipmentDisplayStatus(shipment, tracking) !== "Arribado";
+}
+
+function isMaritimeShipment(shipment: ShipmentSummary) {
+  const shipType = shipment.shipType.trim().toUpperCase();
+
+  return !shipType || shipType === "C" || shipType === "M";
 }
 
 function normalizeRouteMatchText(value: string | null | undefined) {
@@ -1454,7 +1466,9 @@ function ShipmentExpandedRow({
               EMB {shipment.id} · {shipment.season}
             </p>
             <p className="mt-1 truncate text-base font-semibold text-cyl-ink">
-              {shipment.vesselName} · {shipment.container}
+              {isMaritimeShipment(shipment)
+                ? `${shipment.vesselName} · ${shipment.container}`
+                : `${shipment.booking} · ${shipment.container !== "Sin contenedor" ? shipment.container : shipment.shippingLine}`}
             </p>
             <p className="mt-0.5 truncate text-sm text-cyl-ink/60">
               {shipment.originPort} → {shipment.destinationPort} ·{" "}
@@ -1637,6 +1651,10 @@ export function ClientHomeDashboard({
 
   const getContainerTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      if (!isMaritimeShipment(shipment)) {
+        return null;
+      }
+
       const tracking =
         trackingByContainer.get(normalizeContainerKey(shipment.container)) ?? null;
 
@@ -1651,6 +1669,10 @@ export function ClientHomeDashboard({
 
   const getVesselTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      if (!isMaritimeShipment(shipment)) {
+        return null;
+      }
+
       const tracking =
         trackingByVessel.get(normalizeVesselKey(shipment.vesselName)) ?? null;
 
@@ -2470,21 +2492,56 @@ export function ClientHomeDashboard({
                           </td>
 
                           <td className="px-4 py-3.5 align-middle">
-                            <p className="font-semibold text-cyl-ink">
-                              {shipment.container}
-                            </p>
-                            <p className="mt-0.5 text-xs text-cyl-ink/55">
-                              {copy.bookingLabel} {shipment.booking}
-                            </p>
+                            {isMaritimeShipment(shipment) ? (
+                              <>
+                                <p className="font-semibold text-cyl-ink">
+                                  {shipment.container}
+                                </p>
+                                <p className="mt-0.5 text-xs text-cyl-ink/55">
+                                  {copy.bookingLabel} {shipment.booking}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-semibold text-cyl-ink">
+                                  {shipment.booking}{" "}
+                                  <span className="rounded-full bg-cyl-graphite px-2 py-0.5 text-[10px] font-bold uppercase text-cyl-gold">
+                                    {shipment.shipType === "A"
+                                      ? copy.airLabel
+                                      : shipment.shipType === "T"
+                                        ? copy.landLabel
+                                        : copy.nationalLabel}
+                                  </span>
+                                </p>
+                                {shipment.container !== "Sin contenedor" ? (
+                                  <p className="mt-0.5 text-xs text-cyl-ink/55">
+                                    {shipment.container}
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
                           </td>
 
                           <td className="hidden px-4 py-3.5 align-middle sm:table-cell">
-                            <p className="font-medium text-cyl-ink">
-                              {shipment.vesselName}
-                            </p>
-                            <p className="mt-0.5 text-xs text-cyl-ink/55">
-                              {shipment.originPort} → {shipment.destinationPort}
-                            </p>
+                            {isMaritimeShipment(shipment) ? (
+                              <>
+                                <p className="font-medium text-cyl-ink">
+                                  {shipment.vesselName}
+                                </p>
+                                <p className="mt-0.5 text-xs text-cyl-ink/55">
+                                  {shipment.originPort} → {shipment.destinationPort}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-medium text-cyl-ink">
+                                  {shipment.originPort} → {shipment.destinationPort}
+                                </p>
+                                <p className="mt-0.5 text-xs text-cyl-ink/55">
+                                  {shipment.shippingLine}
+                                </p>
+                              </>
+                            )}
                           </td>
 
                           <td className="hidden px-4 py-3.5 align-middle md:table-cell">

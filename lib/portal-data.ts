@@ -37,6 +37,7 @@ export type EmbarqueRow = {
   NumeroCertificadoProductorEti: string | null;
   Mercado_Cliente: string | null;
   FDA: string | null;
+  TipoNave: string | null;
 };
 
 export type DocumentSummary = {
@@ -70,6 +71,7 @@ export type ShipmentSummary = {
   shippingLine: string;
   vesselName: string;
   status: "Programado" | "En transito" | "Arribado";
+  shipType: string;
   pallets: number;
   totalBoxes: number;
   netWeight: number;
@@ -202,6 +204,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-1109-81",
     Mercado_Cliente: "Retail premium",
     FDA: "FDA-CL-8821",
+      TipoNave: null,
   },
   {
     NroEmbarque: 240315,
@@ -242,6 +245,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-1180-33",
     Mercado_Cliente: "Retail premium",
     FDA: "FDA-CL-8821",
+      TipoNave: null,
   },
   {
     NroEmbarque: 240315,
@@ -282,6 +286,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-1264-07",
     Mercado_Cliente: "Retail premium",
     FDA: "FDA-CL-8821",
+      TipoNave: null,
   },
   {
     NroEmbarque: 240318,
@@ -322,6 +327,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-2012-11",
     Mercado_Cliente: "Foodservice",
     FDA: "FDA-US-9941",
+      TipoNave: null,
   },
   {
     NroEmbarque: 240318,
@@ -362,6 +368,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-2088-44",
     Mercado_Cliente: "Foodservice",
     FDA: "FDA-US-9941",
+      TipoNave: null,
   },
   {
     NroEmbarque: 240322,
@@ -402,6 +409,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-3205-17",
     Mercado_Cliente: "Distribucion mayorista",
     FDA: null,
+    TipoNave: null,
   },
   {
     NroEmbarque: 240322,
@@ -442,6 +450,7 @@ export const embarqueRows: EmbarqueRow[] = [
     NumeroCertificadoProductorEti: "CERT-3277-29",
     Mercado_Cliente: "Distribucion mayorista",
     FDA: null,
+    TipoNave: null,
   },
 ];
 
@@ -663,6 +672,7 @@ export function buildShipmentsFromRows(rows: EmbarqueRow[]): ShipmentSummary[] {
       shippingLine: firstRow.NombreNaviera ?? "Sin naviera",
       vesselName: firstRow.NomNave ?? "Sin nave",
       status: resolveShipmentStatus(firstRow),
+      shipType: firstRow.TipoNave ?? "",
       pallets: shipmentRows.length,
       totalBoxes: sumNullable(shipmentRows.map((row) => row.TotalCajas)),
       netWeight: sumNullable(shipmentRows.map((row) => row.PesoNeto)),

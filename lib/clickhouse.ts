@@ -55,6 +55,7 @@ const SHIPMENT_COLUMNS = [
   "NumeroCertificadoProductorEti",
   "Mercado_Cliente",
   "FDA",
+  "TipoNave",
 ] as const;
 
 const TRACKING_COLUMNS = [
@@ -279,6 +280,7 @@ function normalizeRow(row: Record<string, unknown>): EmbarqueRow {
     ),
     Mercado_Cliente: toStringOrNull(row.Mercado_Cliente),
     FDA: toStringOrNull(row.FDA),
+    TipoNave: toStringOrNull(row.TipoNave),
   };
 }
 

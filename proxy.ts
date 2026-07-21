@@ -36,13 +36,20 @@ function createCspNonce() {
   return btoa(crypto.randomUUID());
 }
 
+function isDevelopmentEnv() {
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const cspNonce = createCspNonce();
+  const dev = isDevelopmentEnv();
+  const cspNonce = dev ? undefined : createCspNonce();
   const contentSecurityPolicy = getContentSecurityPolicy(cspNonce);
   const requestHeaders = new Headers(request.headers);
 
-  requestHeaders.set("x-nonce", cspNonce);
+  if (cspNonce) {
+    requestHeaders.set("x-nonce", cspNonce);
+  }
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 
   function withSecurityHeaders(response: NextResponse): NextResponse {
