@@ -43,9 +43,9 @@ export const metadata: Metadata = {
       "Acceso privado para seguimiento de embarques, documentos y trazabilidad operativa de C&L Fruit.",
     images: [
       {
-        url: "/brand/bg_login.jpg",
-        width: 1200,
-        height: 630,
+        url: "/brand/logocyl.png",
+        width: 851,
+        height: 542,
         alt: "Portal Clientes C&L Fruit",
       },
     ],
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     title: "Portal Clientes | C&L Fruit",
     description:
       "Acceso privado para seguimiento de embarques, documentos y trazabilidad operativa de C&L Fruit.",
-    images: ["/brand/bg_login.jpg"],
+    images: ["/brand/logocyl.png"],
   },
   icons: {
     icon: [
