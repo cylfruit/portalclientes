@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import Script from "next/script";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
 const siteName = "Portal Clientes C&L Fruit";
+const clarityProjectId = "xv5tc3kxbg";
 const themeInitScript = `
 (function () {
   try {
@@ -92,6 +94,14 @@ export default async function RootLayout({
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
         />
+        {process.env.NODE_ENV === "production" ? (
+          <Script
+            id="microsoft-clarity"
+            src={`https://www.clarity.ms/tag/${clarityProjectId}`}
+            strategy="afterInteractive"
+            nonce={nonce}
+          />
+        ) : null}
       </head>
       <body className="min-h-full bg-background text-foreground">
         {children}

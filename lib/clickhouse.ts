@@ -880,6 +880,7 @@ function buildContainerTrackingQuery(containerNumbers: string[]) {
     "FROM latest_by_container",
     "WHERE location_lat IS NOT NULL",
     "  AND location_lng IS NOT NULL",
+    "  AND ifNull(tracking_finished, toUInt8(0)) != 1",
     "FORMAT JSON",
   ].join("\n");
 }

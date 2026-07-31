@@ -8,6 +8,10 @@ import {
   resolveDefaultEmbarqueSeasonCode,
 } from "@/lib/clickhouse";
 import {
+  buildShipmentsFromRows,
+  isShipmentArrived,
+} from "@/lib/portal-data";
+import {
   filterRowsForPortalUser,
   requireAuthenticatedPortalUser,
 } from "@/lib/auth";
@@ -44,18 +48,26 @@ async function loadDashboardRows() {
       seasons,
     });
     const rows = filterRowsForPortalUser(rawRows, currentUser);
+    const trackableShipments = buildShipmentsFromRows(rows).filter(
+      (shipment) => !isShipmentArrived(shipment),
+    );
     const containers = Array.from(
       new Set(
-        rows
-          .map((row) => row.Contenedor?.trim())
-          .filter((container): container is string => Boolean(container)),
+        trackableShipments
+          .map((shipment) => shipment.container.trim())
+          .filter(
+            (container) =>
+              Boolean(container) && container !== "Sin contenedor",
+          ),
       ),
     );
     const vesselNames = Array.from(
       new Set(
-        rows
-          .map((row) => row.NomNave?.trim())
-          .filter((vesselName): vesselName is string => Boolean(vesselName)),
+        trackableShipments
+          .map((shipment) => shipment.vesselName.trim())
+          .filter(
+            (vesselName) => Boolean(vesselName) && vesselName !== "Sin nave",
+          ),
       ),
     );
 

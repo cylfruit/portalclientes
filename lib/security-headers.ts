@@ -1,3 +1,9 @@
+const CLARITY_CSP_SOURCES = [
+  "https://www.clarity.ms",
+  "https://*.clarity.ms",
+  "https://c.bing.com",
+] as const;
+
 export const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -15,6 +21,7 @@ export function getContentSecurityPolicy(nonce?: string): string {
     "'self'",
     "https://*.tile.openstreetmap.org",
     "https://*.basemaps.cartocdn.com",
+    ...CLARITY_CSP_SOURCES,
   ];
 
   if (isDevelopment) {
@@ -25,7 +32,7 @@ export function getContentSecurityPolicy(nonce?: string): string {
     connectSources.push("https://cloudflareinsights.com");
   }
 
-  const scriptSources = ["'self'"];
+  const scriptSources = ["'self'", ...CLARITY_CSP_SOURCES];
 
   if (nonce) {
     scriptSources.push(`'nonce-${nonce}'`);
@@ -52,12 +59,12 @@ export function getContentSecurityPolicy(nonce?: string): string {
   }
 
   const directives = [
-    "default-src 'self'",
+    `default-src 'self' ${CLARITY_CSP_SOURCES.join(" ")}`,
     `script-src ${scriptSources.join(" ")}`,
     `style-src ${styleSources.join(" ")}`,
     `style-src-elem ${styleElementSources.join(" ")}`,
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+    `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com ${CLARITY_CSP_SOURCES.join(" ")}`,
     "font-src 'self' data:",
     `connect-src ${connectSources.join(" ")}`,
     "object-src 'none'",

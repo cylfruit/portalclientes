@@ -16,6 +16,7 @@ import {
   formatDate,
   formatNumber,
   type EmbarqueRow,
+  isShipmentArrived,
   type ShipmentSeasonOption,
   type ShipmentSummary,
   type TrackedShipmentItem,
@@ -595,6 +596,10 @@ function resolveShipmentDisplayStatus(
   shipment: ShipmentSummary,
   tracking: ContainerTrackingSnapshot | null,
 ): ShipmentSummary["status"] {
+  if (isShipmentArrived(shipment)) {
+    return "Arribado";
+  }
+
   if (!tracking) {
     return shipment.status;
   }
@@ -696,6 +701,34 @@ function translateDocumentState(state: string, locale: PortalLocale) {
     default:
       return state;
   }
+}
+
+const documentTypeLabels: Record<PortalLocale, Record<string, string>> = {
+  es: {
+    FULL_SET: "FULL SET",
+    FULLSET: "FULL SET",
+    PACKING_LIST: "PACKING LIST",
+    FACTURA_COMERCIAL: "FACTURA COMERCIAL",
+    ISF: "ISF",
+    OTROS_DOCUMENTOS: "OTROS DOCUMENTOS",
+  },
+  en: {
+    FULL_SET: "FULL SET",
+    FULLSET: "FULL SET",
+    PACKING_LIST: "PACKING LIST",
+    FACTURA_COMERCIAL: "COMMERCIAL INVOICE",
+    ISF: "ISF",
+    OTROS_DOCUMENTOS: "MORE DOCUMENTS",
+  },
+};
+
+function translateDocumentType(type: string, locale: PortalLocale) {
+  const normalizedType = type.trim().toUpperCase().replace(/[\s-]+/g, "_");
+
+  return (
+    documentTypeLabels[locale][normalizedType] ??
+    type.trim().replaceAll("_", " ")
+  );
 }
 
 function escapeCsvValue(value: string | number | null | undefined) {
@@ -1047,7 +1080,7 @@ function ShipmentDocumentsGrid({
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold leading-snug">
-                  {documentType}
+                  {translateDocumentType(documentType, locale)}
                 </p>
                 <span className="shrink-0 text-xs font-medium">
                   {translateDocumentState("NO_DISPONIBLE", locale)}
@@ -1092,7 +1125,7 @@ function ShipmentDocumentsGrid({
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm font-semibold leading-snug">
-                  {documentType}
+                  {translateDocumentType(documentType, locale)}
                 </p>
                 <span className="shrink-0 text-xs font-medium">
                   {translateDocumentState("NO_DISPONIBLE", locale)}
@@ -1117,7 +1150,7 @@ function ShipmentDocumentsGrid({
                 <span className={`mt-1 ${documentStateBadgeDot(doc.status)}`} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold leading-snug text-cyl-ink">
-                    {doc.type}
+                    {translateDocumentType(doc.type, locale)}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-cyl-ink/55">
                     {doc.originalName ?? copy.noData}
@@ -1242,16 +1275,16 @@ function TrackingTimeline({
   copy: (typeof dashboardCopy)[PortalLocale];
   locale: PortalLocale;
 }) {
-  // Fecha_ATA and Fecha_ATD in the DB view are always populated (ATA = ETA, ATD = ETD).
-  // Only treat them as "done" when the date has already passed.
+  // Some rows expose ETA instead of ATA. Treat an elapsed arrival date as final
+  // so stale tracking data cannot keep the timeline in transit.
   const today = new Date().toISOString().slice(0, 10);
   const hasEtd = Boolean(shipment.etd);
+  const shipmentHasArrived = isShipmentArrived(shipment);
+  const trackingHasArrived = isTrackingArrived(tracking);
   // tracking !== null means the container is being actively tracked → it has departed
   const hasAtd =
     Boolean(shipment.atd && shipment.atd <= today) || tracking !== null;
-  const hasAta = tracking
-    ? isTrackingArrived(tracking)
-    : Boolean(shipment.ata && shipment.ata <= today);
+  const hasAta = shipmentHasArrived || trackingHasArrived;
 
   // Actual departure date: prefer first completed routePoint from tracking events
   const trackingDeparturePoint = tracking?.routePoints?.find(
@@ -1267,11 +1300,13 @@ function TrackingTimeline({
 
   // Use tracking ETA if available (more accurate than internal DB ETD/ETA)
   const etaDisplay = hasAta
-    ? tracking?.etaReference
-      ? formatTrackingDate(tracking.etaReference, locale)
-      : shipment.ata
-        ? formatDate(shipment.ata, locale)
-        : null
+    ? shipmentHasArrived && (shipment.ata ?? shipment.eta)
+      ? formatDate(shipment.ata ?? shipment.eta, locale)
+      : tracking?.etaReference
+        ? formatTrackingDate(tracking.etaReference, locale)
+        : shipment.ata
+          ? formatDate(shipment.ata, locale)
+          : null
     : tracking?.etaReference
       ? formatTrackingDate(tracking.etaReference, locale)
       : shipment.eta
@@ -1687,6 +1722,10 @@ export function ClientHomeDashboard({
 
   const getTracking = useCallback(
     (shipment: ShipmentSummary): ContainerTrackingSnapshot | null => {
+      if (isShipmentArrived(shipment)) {
+        return null;
+      }
+
       return getContainerTracking(shipment) ?? getVesselTracking(shipment);
     },
     [getContainerTracking, getVesselTracking],

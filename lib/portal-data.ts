@@ -570,16 +570,61 @@ function firstNonEmptyValue(values: Array<string | null | undefined>) {
   );
 }
 
-function resolveShipmentStatus(row: EmbarqueRow): ShipmentSummary["status"] {
-  // Fecha_ATA and Fecha_ATD are always populated in the view (ATA = ETA, ATD = ETD).
-  // Compare against today so we only mark as arrived/departed when the date has passed.
-  const today = new Date().toISOString().slice(0, 10);
+function toComparableDate(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
 
-  if (row.Fecha_ATA && row.Fecha_ATA <= today) {
+  const dateMatch = value.match(/\d{4}-\d{2}-\d{2}/);
+
+  if (dateMatch) {
+    return dateMatch[0];
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getTodayDate() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${today.getFullYear()}-${month}-${day}`;
+}
+
+function isDateOnOrBeforeToday(value: string | null | undefined) {
+  const comparableDate = toComparableDate(value);
+
+  return comparableDate !== null && comparableDate <= getTodayDate();
+}
+
+export function isEmbarqueRowArrived(row: EmbarqueRow) {
+  return isDateOnOrBeforeToday(row.Fecha_ATA ?? row.Fecha_ETA);
+}
+
+export function isShipmentArrived(
+  shipment: Pick<ShipmentSummary, "status" | "ata" | "eta">,
+) {
+  return (
+    shipment.status === "Arribado" ||
+    isDateOnOrBeforeToday(shipment.ata ?? shipment.eta)
+  );
+}
+
+function resolveShipmentStatus(row: EmbarqueRow): ShipmentSummary["status"] {
+  // Some view rows expose ETA instead of ATA. Once that arrival date has passed,
+  // an old tracking snapshot must not keep the shipment in transit.
+  if (isEmbarqueRowArrived(row)) {
     return "Arribado";
   }
 
-  if (row.Fecha_ATD && row.Fecha_ATD <= today) {
+  if (isDateOnOrBeforeToday(row.Fecha_ATD)) {
     return "En transito";
   }
 
