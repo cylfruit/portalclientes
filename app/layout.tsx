@@ -58,8 +58,15 @@ export const metadata: Metadata = {
     images: ["/brand/bg_login.jpg"],
   },
   icons: {
-    icon: "/brand/logocyl.png",
-    apple: "/brand/logocyl.png",
+    icon: [
+      {
+        url: "/brand/favicon.png",
+        type: "image/png",
+        sizes: "512x512",
+      },
+    ],
+    shortcut: "/brand/favicon.png",
+    apple: "/brand/favicon.png",
   },
 };
 
