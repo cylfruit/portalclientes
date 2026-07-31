@@ -80,6 +80,7 @@ export default async function RootLayout({
     >
       <head>
         <script
+          data-cfasync="false"
           nonce={nonce}
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: themeInitScript }}

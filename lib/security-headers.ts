@@ -21,6 +21,10 @@ export function getContentSecurityPolicy(nonce?: string): string {
     connectSources.push("http://localhost:1313");
   }
 
+  if (!isDevelopment) {
+    connectSources.push("https://cloudflareinsights.com");
+  }
+
   const scriptSources = ["'self'"];
 
   if (nonce) {
@@ -29,6 +33,10 @@ export function getContentSecurityPolicy(nonce?: string): string {
 
   if (isDevelopment) {
     scriptSources.push("'unsafe-inline'", "'unsafe-eval'");
+  }
+
+  if (!isDevelopment) {
+    scriptSources.push("https://static.cloudflareinsights.com");
   }
 
   const styleSources = ["'self'"];
