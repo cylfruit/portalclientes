@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth";
 import { sanitizeNextPath } from "@/lib/auth-session";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PasswordInput } from "@/components/password-input";
 
 export const dynamic = "force-dynamic";
 
@@ -250,12 +251,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <span className="text-sm font-semibold text-cyl-ink">
                 {copy.passwordLabel}
               </span>
-              <input
+              <PasswordInput
                 name="password"
-                type="password"
-                autoComplete="current-password"
-                className="w-full rounded-2xl border border-cyl-border bg-cyl-surface px-4 py-3 text-sm text-cyl-ink outline-none transition placeholder:text-cyl-muted focus:border-cyl-action focus:ring-2 focus:ring-cyl-action/25"
                 placeholder={copy.passwordPlaceholder}
+                autoComplete="current-password"
                 required
               />
             </label>
