@@ -58,7 +58,7 @@ type DocumentsApiTokenCache = {
 };
 
 const DEFAULT_TOKEN_TTL_MS = 20 * 60 * 1000;
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 let tokenCache: DocumentsApiTokenCache | null = null;
 

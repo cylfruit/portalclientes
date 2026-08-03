@@ -1,5 +1,5 @@
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_MAX_ATTEMPTS = 20;
 const CLEANUP_INTERVAL_MS = 60_000;
 
 interface RateEntry {

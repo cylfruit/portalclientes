@@ -118,6 +118,8 @@ type ClickHouseJsonResponse<T> = {
   data: T[];
 };
 
+const DEFAULT_CLICKHOUSE_TIMEOUT_MS = 30_000;
+
 function getRequiredEnv(name: string) {
   const value = process.env[name];
 
@@ -1044,9 +1046,13 @@ async function executeClickHouseJsonQuery(query: string) {
   const database = getRequiredEnv("CLICKHOUSE_DATABASE");
   const user = getRequiredEnv("CLICKHOUSE_USER");
   const password = process.env.CLICKHOUSE_PASSWORD || "";
-  const timeoutMs = Number(process.env.CLICKHOUSE_TIMEOUT_MS || "10000");
+   const timeoutMs = Number(
+     process.env.CLICKHOUSE_TIMEOUT_MS || DEFAULT_CLICKHOUSE_TIMEOUT_MS,
+   );
   const safeTimeoutMs =
-    Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10000;
+     Number.isFinite(timeoutMs) && timeoutMs > 0
+       ? timeoutMs
+       : DEFAULT_CLICKHOUSE_TIMEOUT_MS;
   const url = new URL(`${protocol}://${host}:${port}/`);
 
   url.searchParams.set("database", database);
@@ -1080,9 +1086,13 @@ async function executeClickHouseCommand(query: string) {
   const database = getRequiredEnv("CLICKHOUSE_DATABASE");
   const user = getRequiredEnv("CLICKHOUSE_USER");
   const password = process.env.CLICKHOUSE_PASSWORD || "";
-  const timeoutMs = Number(process.env.CLICKHOUSE_TIMEOUT_MS || "10000");
+   const timeoutMs = Number(
+     process.env.CLICKHOUSE_TIMEOUT_MS || DEFAULT_CLICKHOUSE_TIMEOUT_MS,
+   );
   const safeTimeoutMs =
-    Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10000;
+     Number.isFinite(timeoutMs) && timeoutMs > 0
+       ? timeoutMs
+       : DEFAULT_CLICKHOUSE_TIMEOUT_MS;
   const url = new URL(`${protocol}://${host}:${port}/`);
 
   url.searchParams.set("database", database);
