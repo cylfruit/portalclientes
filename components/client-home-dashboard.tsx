@@ -19,9 +19,14 @@ import {
   isShipmentArrived,
   type ShipmentSeasonOption,
   type ShipmentSummary,
-  type TrackingRoutePoint,
   type TrackedShipmentItem,
 } from "@/lib/portal-data";
+import {
+  hasConfirmedTrackingDeparture,
+  isDepartureTrackingPoint,
+  isTrackingDateOnOrBefore,
+  selectConfirmedTracking,
+} from "@/lib/tracking-eligibility";
 
 const TrackingMap = dynamic(
   () => import("@/components/tracking-map").then((m) => m.TrackingMap),
@@ -369,13 +374,6 @@ function matchesDateRange(
   return true;
 }
 
-function shouldRenderShipmentInMap(
-  shipment: ShipmentSummary,
-  tracking: ContainerTrackingSnapshot | null,
-) {
-  return resolveShipmentDisplayStatus(shipment, tracking) !== "Arribado";
-}
-
 function isMaritimeShipment(shipment: ShipmentSummary) {
   const shipType = shipment.shipType.trim().toUpperCase();
 
@@ -586,14 +584,6 @@ const FINAL_TRACKING_STATUS_CODES = new Set([
   "DESTINATION_ARRIVED",
 ]);
 
-const IN_TRANSIT_TRACKING_STATUS_CODES = new Set([
-  "DEPARTED",
-  "IN_TRANSIT",
-  "IN_TRANSSHIPMENT",
-  "LOADED",
-  "TRANSSHIPMENT",
-]);
-
 const COMPLETED_TRACKING_EVENT_STATUSES = new Set([
   "ACTUAL",
   "COMPLETED",
@@ -601,77 +591,10 @@ const COMPLETED_TRACKING_EVENT_STATUSES = new Set([
   "FINISHED",
 ]);
 
-function isDateOnOrBeforeToday(value: string | null | undefined) {
-  const date = extractComparableDate(value);
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const today = `${now.getFullYear()}-${month}-${day}`;
-
-  return date !== null && date <= today;
-}
-
 function isCompletedTrackingEventStatus(value: string | null | undefined) {
   return COMPLETED_TRACKING_EVENT_STATUSES.has(
     (value ?? "").trim().toUpperCase(),
   );
-}
-
-function isTrackingInTransit(tracking: ContainerTrackingSnapshot | null) {
-  if (!tracking) {
-    return false;
-  }
-
-  return (
-    IN_TRANSIT_TRACKING_STATUS_CODES.has(
-      tracking.statusCode.trim().toUpperCase(),
-    ) &&
-    isDateOnOrBeforeToday(tracking.lastEventDate ?? tracking.trackedAt)
-  );
-}
-
-function isDepartureTrackingPoint(point: TrackingRoutePoint) {
-  if (point.state !== "completed" || !isDateOnOrBeforeToday(point.date)) {
-    return false;
-  }
-
-  const description = `${point.label} ${point.description ?? ""}`
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-  return [
-    "depart",
-    "loaded on vessel",
-    "vessel sailing",
-    "salida",
-    "zarpe",
-    "zarpado",
-    "embarcado",
-  ].some((keyword) => description.includes(keyword));
-}
-
-function hasConfirmedTrackingDeparture(
-  shipment: ShipmentSummary,
-  tracking: ContainerTrackingSnapshot | null,
-) {
-  if (isDateOnOrBeforeToday(shipment.atd)) {
-    return true;
-  }
-
-  if (!tracking || tracking.locationSource === "PROGRESS_ESTIMATE") {
-    return false;
-  }
-
-  if (tracking.routePoints.some(isDepartureTrackingPoint)) {
-    return true;
-  }
-
-  if (shipment.etd && !isDateOnOrBeforeToday(shipment.etd)) {
-    return false;
-  }
-
-  return isTrackingInTransit(tracking);
 }
 
 function isTrackingArrived(tracking: ContainerTrackingSnapshot | null) {
@@ -701,7 +624,9 @@ function resolveShipmentDisplayStatus(
     return "Arribado";
   }
 
-  return isTrackingInTransit(tracking) ? "En transito" : shipment.status;
+  return hasConfirmedTrackingDeparture(shipment, tracking)
+    ? "En transito"
+    : shipment.status;
 }
 
 function formatFileSize(
@@ -1377,8 +1302,8 @@ function TrackingTimeline({
   const hasEtd = Boolean(shipment.etd);
   const shipmentHasArrived = isShipmentArrived(shipment);
   const trackingHasArrived = isTrackingArrived(tracking);
-  const trackingDeparturePoint = tracking?.routePoints?.find(
-    isDepartureTrackingPoint,
+  const trackingDeparturePoint = tracking?.routePoints?.find((point) =>
+    isDepartureTrackingPoint(point),
   );
   const hasAtd =
     hasConfirmedTrackingDeparture(shipment, tracking);
@@ -1386,13 +1311,13 @@ function TrackingTimeline({
 
   const departureDate = trackingDeparturePoint?.date
     ? formatTrackingDate(trackingDeparturePoint.date, locale)
-    : isDateOnOrBeforeToday(shipment.atd)
+    : isTrackingDateOnOrBefore(shipment.atd)
       ? formatDate(shipment.atd, locale)
       : hasEtd
         ? formatDate(shipment.etd, locale)
         : null;
   const departureSubtitle =
-    !trackingDeparturePoint && !isDateOnOrBeforeToday(shipment.atd) && hasEtd
+    !trackingDeparturePoint && !isTrackingDateOnOrBefore(shipment.atd) && hasEtd
       ? copy.etdEstimate
       : null;
 
@@ -1429,7 +1354,7 @@ function TrackingTimeline({
   // Last known tracking event for In Transit step
   const hasCompletedLastEvent =
     isCompletedTrackingEventStatus(tracking?.lastEventStatus) &&
-    isDateOnOrBeforeToday(tracking?.lastEventDate);
+    isTrackingDateOnOrBefore(tracking?.lastEventDate);
   const inTransitDate = hasCompletedLastEvent
     ? formatTrackingDate(tracking?.lastEventDate, locale)
     : null;
@@ -1834,13 +1759,10 @@ export function ClientHomeDashboard({
         return null;
       }
 
-      const tracking = getContainerTracking(shipment) ?? getVesselTracking(shipment);
-
-      if (!tracking || !hasConfirmedTrackingDeparture(shipment, tracking)) {
-        return null;
-      }
-
-      return tracking;
+      return selectConfirmedTracking(shipment, [
+        getContainerTracking(shipment),
+        getVesselTracking(shipment),
+      ]);
     },
     [getContainerTracking, getVesselTracking],
   );
@@ -1879,9 +1801,7 @@ export function ClientHomeDashboard({
   );
   const mapEligibleShipments = useMemo(
     () =>
-      filteredShipments.filter((shipment) =>
-        shouldRenderShipmentInMap(shipment, getTracking(shipment)),
-      ),
+      filteredShipments.filter((shipment) => getTracking(shipment) !== null),
     [filteredShipments, getTracking],
   );
   const mapEligibleShipmentKeys = useMemo(
@@ -1926,31 +1846,24 @@ export function ClientHomeDashboard({
     return mapEligibleShipments.reduce<TrackedShipmentItem[]>(
       (acc, shipment) => {
         const byContainer = getContainerTracking(shipment);
+        const tracking = getTracking(shipment);
 
-        if (byContainer) {
-          acc.push({
-            shipment,
-            tracking: byContainer,
-            trackingMatchScope: "container",
-          });
+        if (!tracking) {
           return acc;
         }
 
-        const byVessel = getVesselTracking(shipment);
-
-        if (byVessel) {
-          acc.push({
-            shipment,
-            tracking: byVessel,
-            trackingMatchScope: "vessel",
-          });
-        }
+        acc.push({
+          shipment,
+          tracking,
+          trackingMatchScope:
+            tracking === byContainer ? "container" : "vessel",
+        });
 
         return acc;
       },
       [],
     );
-  }, [getContainerTracking, getVesselTracking, mapEligibleShipments]);
+  }, [getContainerTracking, getTracking, mapEligibleShipments]);
   const selectedMapShipment = useMemo(() => {
     if (!mapSelectedKey) {
       return null;
