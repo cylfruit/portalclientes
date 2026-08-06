@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -57,6 +58,9 @@ const loginCopy: Record<
     usernamePlaceholder: string;
     passwordLabel: string;
     passwordPlaceholder: string;
+    showPasswordLabel: string;
+    hidePasswordLabel: string;
+    forgotPasswordLabel: string;
     submitLabel: string;
     logoutMessage: string;
   }
@@ -79,6 +83,9 @@ const loginCopy: Record<
     usernamePlaceholder: "tu_usuario",
     passwordLabel: "Contrasena",
     passwordPlaceholder: "Tu clave del portal",
+    showPasswordLabel: "Mostrar contrasena",
+    hidePasswordLabel: "Ocultar contrasena",
+    forgotPasswordLabel: "¿Olvidaste tu contrasena?",
     submitLabel: "Entrar al portal",
     logoutMessage: "Sesion cerrada.",
   },
@@ -96,6 +103,9 @@ const loginCopy: Record<
     usernamePlaceholder: "your_username",
     passwordLabel: "Password",
     passwordPlaceholder: "Your portal password",
+    showPasswordLabel: "Show password",
+    hidePasswordLabel: "Hide password",
+    forgotPasswordLabel: "Forgot your password?",
     submitLabel: "Enter portal",
     logoutMessage: "Signed out.",
   },
@@ -256,8 +266,19 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 placeholder={copy.passwordPlaceholder}
                 autoComplete="current-password"
                 required
+                showLabel={copy.showPasswordLabel}
+                hideLabel={copy.hidePasswordLabel}
               />
             </label>
+
+            <div className="text-right">
+              <Link
+                href="/recuperar-contrasena"
+                className="text-sm font-semibold text-cyl-action hover:underline"
+              >
+                {copy.forgotPasswordLabel}
+              </Link>
+            </div>
 
             <button
               type="submit"

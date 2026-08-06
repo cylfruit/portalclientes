@@ -1,5 +1,6 @@
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 20;
+const PASSWORD_RECOVERY_MAX_ATTEMPTS = 5;
 const CLEANUP_INTERVAL_MS = 60_000;
 
 interface RateEntry {
@@ -22,8 +23,9 @@ function cleanup(): void {
   }
 }
 
-export function checkLoginRateLimit(
+function checkRateLimit(
   identifier: string,
+  maxAttempts: number,
 ): { allowed: boolean; remaining: number; retryAfterMs: number } {
   cleanup();
 
@@ -33,19 +35,27 @@ export function checkLoginRateLimit(
 
   if (!entry || now >= entry.resetAt) {
     store.set(identifier, { count: 1, resetAt });
-    return { allowed: true, remaining: LOGIN_MAX_ATTEMPTS - 1, retryAfterMs: 0 };
+    return { allowed: true, remaining: maxAttempts - 1, retryAfterMs: 0 };
   }
 
   entry.count += 1;
-  const allowed = entry.count <= LOGIN_MAX_ATTEMPTS;
-  const remaining = Math.max(0, LOGIN_MAX_ATTEMPTS - entry.count);
+  const allowed = entry.count <= maxAttempts;
+  const remaining = Math.max(0, maxAttempts - entry.count);
   const retryAfterMs = Math.max(0, entry.resetAt - now);
 
-  if (!allowed && entry.count === LOGIN_MAX_ATTEMPTS + 1) {
-    store.set(identifier, { count: LOGIN_MAX_ATTEMPTS + 1, resetAt: entry.resetAt });
+  if (!allowed && entry.count === maxAttempts + 1) {
+    store.set(identifier, { count: maxAttempts + 1, resetAt: entry.resetAt });
   }
 
   return { allowed, remaining, retryAfterMs };
+}
+
+export function checkLoginRateLimit(identifier: string) {
+  return checkRateLimit(identifier, LOGIN_MAX_ATTEMPTS);
+}
+
+export function checkPasswordRecoveryRateLimit(identifier: string) {
+  return checkRateLimit(identifier, PASSWORD_RECOVERY_MAX_ATTEMPTS);
 }
 
 export function resetLoginRateLimit(identifier: string): void {

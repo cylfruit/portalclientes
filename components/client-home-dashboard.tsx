@@ -19,6 +19,7 @@ import {
   isShipmentArrived,
   type ShipmentSeasonOption,
   type ShipmentSummary,
+  type TrackingRoutePoint,
   type TrackedShipmentItem,
 } from "@/lib/portal-data";
 
@@ -192,6 +193,8 @@ const dashboardCopy = {
     exportBoxesLabel: "Cajas",
     exportStatusLabel: "Estado",
     trackingProgress: "Avance estimado",
+    etdEstimate: "ETD estimado",
+    estimatedPosition: "Posicion estimada",
     trackingMapDescription:
       "Mapa interactivo con rutas maritimas y posiciones aproximadas de contenedores. Usa los controles del mapa o selecciona un marcador para ver el embarque relacionado.",
     showInTable: "Ver en tabla",
@@ -292,6 +295,8 @@ const dashboardCopy = {
     exportBoxesLabel: "Boxes",
     exportStatusLabel: "Status",
     trackingProgress: "Estimated progress",
+    etdEstimate: "Estimated ETD",
+    estimatedPosition: "Estimated position",
     trackingMapDescription:
       "Interactive map with ocean routes and approximate container positions. Use the map controls or select a marker to inspect the related shipment.",
     showInTable: "Show in table",
@@ -581,6 +586,68 @@ const FINAL_TRACKING_STATUS_CODES = new Set([
   "DESTINATION_ARRIVED",
 ]);
 
+const IN_TRANSIT_TRACKING_STATUS_CODES = new Set([
+  "DEPARTED",
+  "IN_TRANSIT",
+  "IN_TRANSSHIPMENT",
+  "LOADED",
+  "TRANSSHIPMENT",
+]);
+
+const COMPLETED_TRACKING_EVENT_STATUSES = new Set([
+  "ACTUAL",
+  "COMPLETED",
+  "DONE",
+  "FINISHED",
+]);
+
+function isDateOnOrBeforeToday(value: string | null | undefined) {
+  const date = extractComparableDate(value);
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const today = `${now.getFullYear()}-${month}-${day}`;
+
+  return date !== null && date <= today;
+}
+
+function isCompletedTrackingEventStatus(value: string | null | undefined) {
+  return COMPLETED_TRACKING_EVENT_STATUSES.has(
+    (value ?? "").trim().toUpperCase(),
+  );
+}
+
+function isTrackingInTransit(tracking: ContainerTrackingSnapshot | null) {
+  if (!tracking) {
+    return false;
+  }
+
+  return IN_TRANSIT_TRACKING_STATUS_CODES.has(
+    tracking.statusCode.trim().toUpperCase(),
+  );
+}
+
+function isDepartureTrackingPoint(point: TrackingRoutePoint) {
+  if (point.state !== "completed" || !isDateOnOrBeforeToday(point.date)) {
+    return false;
+  }
+
+  const description = `${point.label} ${point.description ?? ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return [
+    "depart",
+    "loaded on vessel",
+    "vessel sailing",
+    "salida",
+    "zarpe",
+    "zarpado",
+    "embarcado",
+  ].some((keyword) => description.includes(keyword));
+}
+
 function isTrackingArrived(tracking: ContainerTrackingSnapshot | null) {
   if (!tracking) {
     return false;
@@ -604,7 +671,11 @@ function resolveShipmentDisplayStatus(
     return shipment.status;
   }
 
-  return isTrackingArrived(tracking) ? "Arribado" : "En transito";
+  if (isTrackingArrived(tracking)) {
+    return "Arribado";
+  }
+
+  return isTrackingInTransit(tracking) ? "En transito" : shipment.status;
 }
 
 function formatFileSize(
@@ -1277,26 +1348,29 @@ function TrackingTimeline({
 }) {
   // Some rows expose ETA instead of ATA. Treat an elapsed arrival date as final
   // so stale tracking data cannot keep the timeline in transit.
-  const today = new Date().toISOString().slice(0, 10);
   const hasEtd = Boolean(shipment.etd);
   const shipmentHasArrived = isShipmentArrived(shipment);
   const trackingHasArrived = isTrackingArrived(tracking);
-  // tracking !== null means the container is being actively tracked → it has departed
+  const trackingDeparturePoint = tracking?.routePoints?.find(
+    isDepartureTrackingPoint,
+  );
   const hasAtd =
-    Boolean(shipment.atd && shipment.atd <= today) || tracking !== null;
+    isDateOnOrBeforeToday(shipment.atd) ||
+    Boolean(trackingDeparturePoint) ||
+    isTrackingInTransit(tracking);
   const hasAta = shipmentHasArrived || trackingHasArrived;
 
-  // Actual departure date: prefer first completed routePoint from tracking events
-  const trackingDeparturePoint = tracking?.routePoints?.find(
-    (p) => p.state === "completed" && p.date,
-  );
   const departureDate = trackingDeparturePoint?.date
     ? formatTrackingDate(trackingDeparturePoint.date, locale)
-    : hasAtd && shipment.atd
+    : isDateOnOrBeforeToday(shipment.atd)
       ? formatDate(shipment.atd, locale)
       : hasEtd
         ? formatDate(shipment.etd, locale)
         : null;
+  const departureSubtitle =
+    !trackingDeparturePoint && !isDateOnOrBeforeToday(shipment.atd) && hasEtd
+      ? copy.etdEstimate
+      : null;
 
   // Use tracking ETA if available (more accurate than internal DB ETD/ETA)
   const etaDisplay = hasAta
@@ -1329,11 +1403,18 @@ function TrackingTimeline({
   );
 
   // Last known tracking event for In Transit step
-  const inTransitDate = tracking?.lastEventDate
-    ? formatTrackingDate(tracking.lastEventDate, locale)
+  const hasCompletedLastEvent =
+    isCompletedTrackingEventStatus(tracking?.lastEventStatus) &&
+    isDateOnOrBeforeToday(tracking?.lastEventDate);
+  const inTransitDate = hasCompletedLastEvent
+    ? formatTrackingDate(tracking?.lastEventDate, locale)
     : null;
   const inTransitSubtitle =
-    tracking?.lastEventLocationName ?? tracking?.lastEventDescription ?? null;
+    hasCompletedLastEvent
+      ? (tracking?.lastEventLocationName ??
+        tracking?.lastEventDescription ??
+        null)
+      : null;
 
   type Step = {
     label: string;
@@ -1346,16 +1427,15 @@ function TrackingTimeline({
   const steps: Step[] = [
     {
       label: copy.stepLoaded,
-      date: hasEtd ? formatDate(shipment.etd, locale) : null,
+      date: null,
       subtitle: null,
-      // cargo is "loaded/ready" once we have an ETD
-      done: hasEtd,
-      active: false,
+      done: hasAtd,
+      active: hasEtd && !hasAtd,
     },
     {
       label: copy.stepDeparted,
       date: departureDate,
-      subtitle: null,
+      subtitle: departureSubtitle,
       done: hasAtd,
       // ETD is set but vessel hasn't actually departed yet
       active: hasEtd && !hasAtd,
@@ -1458,7 +1538,11 @@ function TrackingTimeline({
           <div className="mt-1.5 flex items-center gap-1.5 text-xs text-cyl-ink/50">
             <MapPinIcon />
             <span>
-              {tracking.lastEventLocationName ?? tracking.destinationName}
+              {tracking.locationSource === "PROGRESS_ESTIMATE"
+                ? copy.estimatedPosition
+                : hasCompletedLastEvent
+                  ? (tracking.lastEventLocationName ?? tracking.originName)
+                  : tracking.originName}
             </span>
           </div>
         </div>

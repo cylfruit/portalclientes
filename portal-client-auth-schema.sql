@@ -29,6 +29,20 @@ ENGINE = ReplacingMergeTree(Version)
 ORDER BY (UserId)
 SETTINGS index_granularity = 8192;
 
+-- Only the latest token per user is kept by FINAL. The raw token is never stored.
+CREATE TABLE IF NOT EXISTS PortalClientes.PortalPasswordResetTokens
+(
+   UserId UUID,
+   TokenHash String,
+   ExpiresAt DateTime64(3, 'UTC'),
+   UsedAt Nullable(DateTime64(3, 'UTC')),
+   CreatedAt DateTime64(3, 'UTC'),
+   Version UInt64
+)
+ENGINE = ReplacingMergeTree(Version)
+ORDER BY (UserId)
+SETTINGS index_granularity = 8192;
+
 -- Consulta recomendada desde backend o scripts administrativos:
 -- SELECT *
 -- FROM PortalClientes.PortalClientUsers FINAL

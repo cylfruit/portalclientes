@@ -66,6 +66,17 @@ export type PortalClientUserRecord = {
   version: number;
 };
 
+export type PortalPasswordResetTokenRecord = {
+  userId: string;
+  tokenHash: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+  version: number;
+};
+
+export const MIN_PORTAL_PASSWORD_LENGTH = 10;
+
 export type PortalClientUserFilters = {
   q?: string | null;
   recipientCode?: string | null;
@@ -373,6 +384,14 @@ export function verifyPortalUserPassword(
   return timingSafeEqual(actualHash, expectedBuffer);
 }
 
+export function validatePortalPassword(password: string, label = "La password") {
+  if (password.length < MIN_PORTAL_PASSWORD_LENGTH) {
+    throw new PortalUserValidationError(
+      `${label} debe tener al menos ${MIN_PORTAL_PASSWORD_LENGTH} caracteres.`,
+    );
+  }
+}
+
 export function mapPortalClientUserRecordToView(
   record: PortalClientUserRecord,
 ): PortalClientUser {
@@ -425,11 +444,7 @@ export function parsePortalClientUserCreateInput(payload: unknown) {
     ),
   });
 
-  if (normalized.password.length < 10) {
-    throw new PortalUserValidationError(
-      "La password debe tener al menos 10 caracteres.",
-    );
-  }
+  validatePortalPassword(normalized.password);
 
   return normalized;
 }
@@ -478,12 +493,13 @@ export function parsePortalClientUserUpdateInput(payload: unknown) {
   if (payload.password !== undefined) {
     const password = normalizeString(payload.password);
 
-    if (!password || password.length < 10) {
+    if (!password) {
       throw new PortalUserValidationError(
-        "La nueva password debe tener al menos 10 caracteres.",
+        "La nueva password es obligatoria.",
       );
     }
 
+    validatePortalPassword(password, "La nueva password");
     normalized.password = password;
   }
 

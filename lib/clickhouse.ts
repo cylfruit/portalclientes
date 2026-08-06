@@ -11,6 +11,7 @@ import {
   type PortalClientUserFilters,
   type PortalClientUserLocale,
   type PortalClientUserModule,
+  type PortalPasswordResetTokenRecord,
   type PortalClientUserRecord,
   type PortalClientUserRoleKey,
   type PortalClientUserStatus,
@@ -111,6 +112,15 @@ const PORTAL_USER_COLUMNS = [
   "LastAccessAt",
   "CreatedAt",
   "UpdatedAt",
+  "Version",
+] as const;
+
+const PASSWORD_RESET_TOKEN_COLUMNS = [
+  "UserId",
+  "TokenHash",
+  "ExpiresAt",
+  "UsedAt",
+  "CreatedAt",
   "Version",
 ] as const;
 
@@ -354,7 +364,7 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
       latitude: originLatitude,
       longitude: originLongitude,
       state: "completed",
-      date: toStringOrNull(row.tracked_at),
+      date: null,
       description: "Origen del viaje",
     });
   }
@@ -529,8 +539,8 @@ function normalizeTrackingSnapshot(
 
   return {
     containerNumber,
-    statusCode: toStringOrNull(row.container_status_code) ?? "IN_TRANSIT",
-    statusLabel: toStringOrNull(row.container_status) ?? "En transito",
+    statusCode: toStringOrNull(row.container_status_code) ?? "UNKNOWN",
+    statusLabel: toStringOrNull(row.container_status) ?? "Sin estado",
     trackedAt: toStringOrNull(row.tracked_at),
     locationSource: toStringOrNull(row.location_source) ?? "tracking",
     progressPercentage,
@@ -650,6 +660,13 @@ function getPortalUsersTableName() {
   );
 }
 
+function getPasswordResetTokensTableName() {
+  return escapeIdentifier(
+    process.env.CLICKHOUSE_PASSWORD_RESET_TOKENS_TABLE?.trim() ||
+      "PortalClientes.PortalPasswordResetTokens",
+  );
+}
+
 function formatClickHouseDateTimeValue(value: string | null) {
   if (!value) {
     return null;
@@ -686,6 +703,41 @@ function serializePortalClientUserRecord(record: PortalClientUserRecord) {
     CreatedAt: formatClickHouseDateTimeValue(record.createdAt),
     UpdatedAt: formatClickHouseDateTimeValue(record.updatedAt),
     Version: record.version,
+  };
+}
+
+function serializePasswordResetTokenRecord(
+  record: PortalPasswordResetTokenRecord,
+) {
+  return {
+    UserId: record.userId,
+    TokenHash: record.tokenHash,
+    ExpiresAt: formatClickHouseDateTimeValue(record.expiresAt),
+    UsedAt: formatClickHouseDateTimeValue(record.usedAt),
+    CreatedAt: formatClickHouseDateTimeValue(record.createdAt),
+    Version: record.version,
+  };
+}
+
+function normalizePasswordResetTokenRecord(
+  row: Record<string, unknown>,
+): PortalPasswordResetTokenRecord | null {
+  const userId = toStringOrNull(row.UserId);
+  const tokenHash = toStringOrNull(row.TokenHash);
+  const expiresAt = toStringOrNull(row.ExpiresAt);
+  const createdAt = toStringOrNull(row.CreatedAt);
+
+  if (!userId || !tokenHash || !expiresAt || !createdAt) {
+    return null;
+  }
+
+  return {
+    userId,
+    tokenHash,
+    expiresAt,
+    usedAt: toStringOrNull(row.UsedAt),
+    createdAt,
+    version: toNumberOrNull(row.Version) ?? 0,
   };
 }
 
@@ -1279,6 +1331,34 @@ export async function fetchPortalClientUserRecordByEmail(email: string) {
     buildPortalUserByFieldQuery("Email", email),
   );
   return normalizePortalClientUserRecord(payload.data[0] ?? {});
+}
+
+export async function fetchPasswordResetTokenByHash(tokenHash: string) {
+  const table = getPasswordResetTokensTableName();
+  const payload = await executeClickHouseJsonQuery(
+    [
+      `SELECT ${PASSWORD_RESET_TOKEN_COLUMNS.join(", ")}`,
+      `FROM ${table} FINAL`,
+      `WHERE TokenHash = '${escapeStringLiteral(tokenHash)}'`,
+      "LIMIT 1",
+      "FORMAT JSON",
+    ].join("\n"),
+  );
+
+  return normalizePasswordResetTokenRecord(payload.data[0] ?? {});
+}
+
+export async function upsertPasswordResetToken(
+  record: PortalPasswordResetTokenRecord,
+) {
+  const table = getPasswordResetTokensTableName();
+  const query = [
+    `INSERT INTO ${table} (${PASSWORD_RESET_TOKEN_COLUMNS.join(", ")}) FORMAT JSONEachRow`,
+    JSON.stringify(serializePasswordResetTokenRecord(record)),
+  ].join("\n");
+
+  await executeClickHouseCommand(query);
+  return record;
 }
 
 export async function fetchPortalReceivers(): Promise<PortalReceiver[]> {

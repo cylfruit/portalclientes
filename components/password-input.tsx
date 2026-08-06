@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import type { ChangeEventHandler } from "react";
 
 type PasswordInputProps = {
   name: string;
   placeholder: string;
   autoComplete: string;
   required?: boolean;
+  disabled?: boolean;
+  minLength?: number;
+  id?: string;
+  value?: string;
+  onChange?: ChangeEventHandler<HTMLInputElement>;
+  showLabel?: string;
+  hideLabel?: string;
 };
 
 function EyeIcon() {
@@ -48,6 +56,13 @@ export function PasswordInput({
   placeholder,
   autoComplete,
   required,
+  disabled,
+  minLength,
+  id,
+  value,
+  onChange,
+  showLabel = "Mostrar contraseña",
+  hideLabel = "Ocultar contraseña",
 }: PasswordInputProps) {
   const [visible, setVisible] = useState(false);
 
@@ -55,17 +70,23 @@ export function PasswordInput({
     <div className="relative">
       <input
         name={name}
+        id={id}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
         className="w-full rounded-2xl border border-cyl-border bg-cyl-surface px-4 py-3 pr-11 text-sm text-cyl-ink outline-none transition placeholder:text-cyl-muted focus:border-cyl-action focus:ring-2 focus:ring-cyl-action/25"
         placeholder={placeholder}
         required={required}
+        disabled={disabled}
+        minLength={minLength}
+        value={value}
+        onChange={onChange}
       />
       <button
         type="button"
         onClick={() => setVisible((prev) => !prev)}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-cyl-muted transition hover:text-cyl-ink"
-        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        aria-label={visible ? hideLabel : showLabel}
+        disabled={disabled}
       >
         {visible ? <EyeOffIcon /> : <EyeIcon />}
       </button>

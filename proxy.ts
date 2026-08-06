@@ -15,8 +15,12 @@ import {
 function isPublicPath(pathname: string) {
   return (
     pathname === "/login" ||
+    pathname === "/recuperar-contrasena" ||
+    pathname === "/restablecer-contrasena" ||
     pathname === "/api/auth/login" ||
-    pathname === "/api/auth/logout"
+    pathname === "/api/auth/logout" ||
+    pathname === "/api/auth/forgot-password" ||
+    pathname === "/api/auth/reset-password"
   );
 }
 

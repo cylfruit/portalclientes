@@ -10,10 +10,11 @@ import { PortalMobileNav } from "./portal-mobile-nav";
 import { ThemeToggle } from "./theme-toggle";
 
 type PortalShellProps = {
-  activePath: "/" | "/usuarios";
+  activePath: "/" | "/usuarios" | "/seguridad";
   heading: string;
   description: string;
   aside?: ReactNode;
+  centeredHeading?: boolean;
   children: ReactNode;
 };
 
@@ -28,6 +29,7 @@ const shellCopy = {
     openNavigation: "Abrir navegacion",
     closeNavigation: "Cerrar navegacion",
     users: "Usuarios",
+    security: "Seguridad",
     logout: "Salir",
     footerDescription:
       "Embarques, documentos y trazabilidad de fruta en una interfaz alineada visualmente con el portal principal de C&L.",
@@ -38,6 +40,12 @@ const shellCopy = {
         label: "Usuarios",
         key: "usuarios",
         icon: <UsersIcon />,
+      },
+      {
+        href: "/seguridad",
+        label: "Seguridad",
+        key: "seguridad",
+        icon: <SecurityIcon />,
       },
     ],
   },
@@ -51,6 +59,7 @@ const shellCopy = {
     openNavigation: "Open navigation",
     closeNavigation: "Close navigation",
     users: "Users",
+    security: "Security",
     logout: "Sign out",
     footerDescription:
       "Shipments, documents, and fruit traceability in an interface visually aligned with the main C&L portal.",
@@ -62,6 +71,12 @@ const shellCopy = {
         key: "usuarios",
         icon: <UsersIcon />,
       },
+      {
+        href: "/seguridad",
+        label: "Security",
+        key: "seguridad",
+        icon: <SecurityIcon />,
+      },
     ],
   },
 } as const;
@@ -71,6 +86,7 @@ export async function PortalShell({
   heading,
   description,
   aside,
+  centeredHeading = false,
   children,
 }: PortalShellProps) {
   const sessionClaims = await readSessionClaimsFromCookies();
@@ -86,7 +102,12 @@ export async function PortalShell({
   const visibleNavigation = canManageUsers
     ? copy.navigation
     : copy.navigation.filter((item) => item.key !== "usuarios");
-  const activeKey = activePath === "/usuarios" ? "usuarios" : null;
+  const activeKey =
+    activePath === "/usuarios"
+      ? "usuarios"
+      : activePath === "/seguridad"
+        ? "seguridad"
+        : null;
 
   return (
     <div className="portal-shell-root min-h-screen text-cyl-ink">
@@ -188,12 +209,17 @@ export async function PortalShell({
               className={`flex items-center gap-2 sm:gap-3 ${visibleNavigation.length > 0 ? "" : "ml-auto"}`}
             >
               <ThemeToggle locale={locale} />
-              <div className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-sm font-semibold text-white md:flex">
+              <Link
+                href="/seguridad"
+                aria-label={`${copy.security}: ${displayUserName}`}
+                title={copy.security}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-2 py-2 text-sm font-semibold text-white transition hover:border-cyl-gold/60 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyl-gold/70 md:px-3"
+              >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyl-gold/16 text-cyl-gold">
                   <UserIcon />
                 </span>
-                {displayUserName}
-              </div>
+                <span className="hidden md:inline">{displayUserName}</span>
+              </Link>
               <form action="/api/auth/logout" method="post">
                 <input type="hidden" name="csrfToken" value={csrfToken ?? ""} />
                 <button
@@ -228,16 +254,16 @@ export async function PortalShell({
               : "py-10"
           }`}
         >
-          <div className="space-y-4">
+          <div className={`space-y-4 ${centeredHeading ? "text-center" : ""}`}>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyl-gold-soft/78">
               {copy.brandKicker}
             </p>
             <h1
-              className={`portal-display max-w-4xl leading-none text-white ${aside ? "text-5xl sm:text-6xl lg:text-7xl" : "text-[3.4rem] sm:text-[4.3rem]"}`}
+              className={`portal-display max-w-4xl leading-[0.95] text-white ${centeredHeading ? "mx-auto text-4xl sm:text-5xl lg:text-7xl" : aside ? "text-5xl sm:text-6xl lg:text-7xl" : "text-[3.4rem] sm:text-[4.3rem]"}`}
             >
               {heading}
             </h1>
-            <p className="max-w-2xl text-base leading-7 text-white/76 sm:text-lg">
+            <p className={`max-w-2xl text-base leading-7 text-white/76 sm:text-lg ${centeredHeading ? "mx-auto" : ""}`}>
               {description}
             </p>
           </div>
@@ -406,6 +432,22 @@ function UserIcon() {
     >
       <circle cx="10" cy="7" r="3" />
       <path d="M4.5 16a5.5 5.5 0 0 1 11 0" />
+    </svg>
+  );
+}
+
+function SecurityIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      className="h-4 w-4"
+    >
+      <path d="M10 2.5 16 5v4.2c0 3.8-2.5 6.8-6 8.3-3.5-1.5-6-4.5-6-8.3V5l6-2.5Z" />
+      <path d="m7.5 10 1.7 1.7 3.4-3.5" />
     </svg>
   );
 }
