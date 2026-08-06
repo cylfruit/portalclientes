@@ -591,8 +591,10 @@ function toPortalUserRoleKey(value: unknown): PortalClientUserRoleKey {
 }
 
 function toPortalUserLocale(value: unknown): PortalClientUserLocale {
-  const normalized = toStringOrNull(value);
-  return normalized === "en" ? "en" : "es";
+  const normalized = (toStringOrNull(value) ?? "").toLowerCase();
+  return normalized === "en" || normalized.startsWith("en-") || normalized.startsWith("english")
+    ? "en"
+    : "es";
 }
 
 function toPortalUserStatus(value: unknown): PortalClientUserStatus {

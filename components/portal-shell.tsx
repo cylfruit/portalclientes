@@ -132,20 +132,20 @@ export async function PortalShell({
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.92),rgba(0,0,0,0.8))]" />
           </div>
 
-          <div className="relative mx-auto flex max-w-screen-2xl items-center gap-4 px-4 py-4 lg:px-8">
-            <Link href="/" className="flex min-w-0 items-center gap-3">
+          <div className="relative mx-auto flex max-w-screen-2xl items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4 lg:px-8">
+            <Link href="/" className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
               <Image
                 src="/brand/logocyl.png"
                 alt="C&L Fruit"
                 width={72}
                 height={72}
-                className="h-14 w-14 object-contain"
+                className="h-10 w-10 shrink-0 object-contain sm:h-14 sm:w-14"
               />
               <div className="min-w-0">
-                <p className="text-xl font-black leading-none text-white sm:text-2xl">
+                <p className="truncate text-base font-black leading-none text-white sm:text-xl lg:text-2xl">
                   {copy.brandTitle}
                 </p>
-                <p className="mt-1 text-sm text-white/68">C&amp;L Fruit</p>
+                <p className="mt-1 hidden text-sm text-white/68 sm:block">C&amp;L Fruit</p>
               </div>
             </Link>
 
@@ -154,7 +154,7 @@ export async function PortalShell({
                 <button
                   id="portal-nav-toggle"
                   type="button"
-                  className="ml-auto inline-flex items-center justify-center rounded-2xl border border-white/14 bg-white/8 p-2.5 text-white transition hover:bg-white/14 lg:hidden"
+                  className="order-3 inline-flex shrink-0 items-center justify-center rounded-2xl border border-white/14 bg-white/8 p-2.5 text-white transition hover:bg-white/14 lg:order-none lg:hidden"
                   aria-controls="portal-nav-overlay"
                   aria-expanded="false"
                   aria-label={copy.openNavigation}
@@ -206,7 +206,7 @@ export async function PortalShell({
             ) : null}
 
             <div
-              className={`flex items-center gap-2 sm:gap-3 ${visibleNavigation.length > 0 ? "" : "ml-auto"}`}
+              className={`order-2 flex shrink-0 items-center gap-1 sm:gap-3 ${visibleNavigation.length > 0 ? "" : "ml-auto"}`}
             >
               <ThemeToggle locale={locale} />
               <Link
@@ -224,9 +224,10 @@ export async function PortalShell({
                 <input type="hidden" name="csrfToken" value={csrfToken ?? ""} />
                 <button
                   type="submit"
-                  className="rounded-full border border-white/20 bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-transparent text-sm font-semibold text-white transition hover:bg-white/10 sm:h-auto sm:w-auto sm:px-4 sm:py-2"
                 >
-                  {copy.logout}
+                  <LogoutIcon />
+                  <span className="sr-only sm:not-sr-only sm:ml-2">{copy.logout}</span>
                 </button>
               </form>
             </div>
@@ -448,6 +449,22 @@ function SecurityIcon() {
     >
       <path d="M10 2.5 16 5v4.2c0 3.8-2.5 6.8-6 8.3-3.5-1.5-6-4.5-6-8.3V5l6-2.5Z" />
       <path d="m7.5 10 1.7 1.7 3.4-3.5" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      className="h-4 w-4"
+    >
+      <path d="M8 3H4.5A1.5 1.5 0 0 0 3 4.5v11A1.5 1.5 0 0 0 4.5 17H8" />
+      <path d="M11 6.5 14.5 10 11 13.5M7 10h7.5" />
     </svg>
   );
 }
