@@ -86,13 +86,17 @@ export function hasConfirmedTrackingDeparture(
   tracking: TrackingEligibilitySnapshot | null,
   today = getLocalTrackingDate(),
 ) {
+  if (tracking?.locationSource === "PROGRESS_ESTIMATE") {
+    return false;
+  }
+
   if (isTrackingDateOnOrBefore(shipment.atd, today)) {
     return true;
   }
 
   // Estimated coordinates are generated from schedule/progress and are not
   // evidence that the container or vessel has departed.
-  if (!tracking || tracking.locationSource === "PROGRESS_ESTIMATE") {
+  if (!tracking) {
     return false;
   }
 
