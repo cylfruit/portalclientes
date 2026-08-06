@@ -445,43 +445,44 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
   const currentLongitude = toNumberOrNull(row.location_lng);
   const locationSource = toStringOrNull(row.location_source);
 
-  const { currentLabel, currentDescription, currentDate } = (() => {
-    switch (locationSource) {
-      case "PROGRESS_ESTIMATE":
-        return {
-          currentLabel: "Posicion estimada",
-          currentDescription: "Posicion estimada por avance del tracking",
-          currentDate: toStringOrNull(row.tracked_at),
-        };
-      case "CURRENT_POSITION": {
-        const vesselLabel = toStringOrNull(row.vessel_name);
-        return {
-          currentLabel: vesselLabel
-            ? `En navegacion - ${vesselLabel}`
-            : "Posicion AIS",
-          currentDescription: "Posicion satelital en tiempo real",
-          currentDate:
-            toStringOrNull(row.last_event_date) ??
-            toStringOrNull(row.tracked_at),
-        };
-      }
-      default:
-        return {
-          currentLabel:
-            toStringOrNull(row.last_event_location_name) ??
-            toStringOrNull(row.destination_name) ??
-            "Posicion actual",
-          currentDescription:
-            toStringOrNull(row.last_event_description) ??
-            "Ultima posicion reportada",
-          currentDate:
-            toStringOrNull(row.last_event_date) ??
-            toStringOrNull(row.tracked_at),
-        };
-    }
-  })();
+  const locationSourceLabel =
+    locationSource === "PROGRESS_ESTIMATE" ? "PROGRESS_ESTIMATE" : null;
 
-  if (currentLatitude !== null && currentLongitude !== null) {
+  if (
+    locationSourceLabel == null &&
+    currentLatitude !== null &&
+    currentLongitude !== null
+  ) {
+    const { currentLabel, currentDescription, currentDate } = (() => {
+      switch (locationSource) {
+        case "CURRENT_POSITION": {
+          const vesselLabel = toStringOrNull(row.vessel_name);
+          return {
+            currentLabel: vesselLabel
+              ? `En navegacion - ${vesselLabel}`
+              : "Posicion AIS",
+            currentDescription: "Posicion satelital en tiempo real",
+            currentDate:
+              toStringOrNull(row.last_event_date) ??
+              toStringOrNull(row.tracked_at),
+          };
+        }
+        default:
+          return {
+            currentLabel:
+              toStringOrNull(row.last_event_location_name) ??
+              toStringOrNull(row.destination_name) ??
+              "Posicion actual",
+            currentDescription:
+              toStringOrNull(row.last_event_description) ??
+              "Ultima posicion reportada",
+            currentDate:
+              toStringOrNull(row.last_event_date) ??
+              toStringOrNull(row.tracked_at),
+          };
+      }
+    })();
+
     pushTrackingRoutePoint(routePoints, seenPointKeys, {
       label: currentLabel,
       latitude: currentLatitude,
