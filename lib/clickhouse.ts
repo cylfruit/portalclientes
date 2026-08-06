@@ -402,7 +402,10 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
             return;
           }
 
-          const date = dates[0] ?? null;
+          // Each location reports its milestones in order (e.g. "Gate out
+          // empty" -> "Loaded" -> "Vessel departure"); the last entry is the
+          // most recent completed milestone, not the first one.
+          const date = dates[dates.length - 1] ?? null;
 
           completedEventPoints.push({
             sortIndex: completedEventPoints.length,
@@ -413,7 +416,7 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
               longitude,
               state: "completed",
               date,
-              description: descriptions[0] ?? null,
+              description: descriptions[descriptions.length - 1] ?? null,
             },
           });
         });
@@ -445,14 +448,7 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
   const currentLongitude = toNumberOrNull(row.location_lng);
   const locationSource = toStringOrNull(row.location_source);
 
-  const locationSourceLabel =
-    locationSource === "PROGRESS_ESTIMATE" ? "PROGRESS_ESTIMATE" : null;
-
-  if (
-    locationSourceLabel == null &&
-    currentLatitude !== null &&
-    currentLongitude !== null
-  ) {
+  if (currentLatitude !== null && currentLongitude !== null) {
     const { currentLabel, currentDescription, currentDate } = (() => {
       switch (locationSource) {
         case "CURRENT_POSITION": {
@@ -467,6 +463,12 @@ function buildTrackingRoutePoints(row: Record<string, unknown>) {
               toStringOrNull(row.tracked_at),
           };
         }
+        case "PROGRESS_ESTIMATE":
+          return {
+            currentLabel: "Posicion estimada",
+            currentDescription: "Posicion estimada por avance del tracking",
+            currentDate: toStringOrNull(row.tracked_at),
+          };
         default:
           return {
             currentLabel:

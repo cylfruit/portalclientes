@@ -86,20 +86,17 @@ export function hasConfirmedTrackingDeparture(
   tracking: TrackingEligibilitySnapshot | null,
   today = getLocalTrackingDate(),
 ) {
-  if (tracking?.locationSource === "PROGRESS_ESTIMATE") {
-    return false;
-  }
-
+  // The shipment's own recorded ATD is the authoritative operational record.
   if (isTrackingDateOnOrBefore(shipment.atd, today)) {
     return true;
   }
 
-  // Estimated coordinates are generated from schedule/progress and are not
-  // evidence that the container or vessel has departed.
   if (!tracking) {
     return false;
   }
 
+  // A reported completed departure event is real evidence, regardless of
+  // whether the current position comes from AIS or a schedule estimate.
   if (
     tracking.routePoints.some((point) =>
       isDepartureTrackingPoint(point, today),
@@ -108,8 +105,20 @@ export function hasConfirmedTrackingDeparture(
     return true;
   }
 
-  // A future ETD takes precedence over generic IN_TRANSIT data from a provider.
-  if (shipment.etd && !isTrackingDateOnOrBefore(shipment.etd, today)) {
+  // Without a confirmed ATD or departure event, an estimated (non-AIS)
+  // position is just a schedule/progress projection - not evidence the
+  // container or vessel has actually departed.
+  if (tracking.locationSource === "PROGRESS_ESTIMATE") {
+    return false;
+  }
+
+  // A future ETD takes precedence over generic IN_TRANSIT data from a provider,
+  // but only when the provider hasn't reported any event with a past date.
+  if (
+    shipment.etd &&
+    !isTrackingDateOnOrBefore(shipment.etd, today) &&
+    !isTrackingDateOnOrBefore(tracking.lastEventDate ?? tracking.trackedAt, today)
+  ) {
     return false;
   }
 

@@ -1346,10 +1346,10 @@ function TrackingTimeline({
         ? "ETA estimado"
         : "Estimated ETA"
     : null;
-  const displayProgress =
-    tracking?.locationSource === "PROGRESS_ESTIMATE"
-      ? null
-      : normalizeTrackingProgress(tracking?.progressPercentage, hasAta);
+  const displayProgress = normalizeTrackingProgress(
+    tracking?.progressPercentage,
+    hasAta,
+  );
 
   // Last known tracking event for In Transit step
   const hasCompletedLastEvent =
