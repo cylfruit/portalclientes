@@ -35,7 +35,7 @@ export default async function SecurityPage({
       <PasswordSecurityPanel
         csrfToken={csrfToken}
         locale={locale}
-        required={required || user.requiresPasswordReset}
+        required={required}
       />
     </PortalShell>
   );

@@ -622,8 +622,11 @@ function isTrackingInTransit(tracking: ContainerTrackingSnapshot | null) {
     return false;
   }
 
-  return IN_TRANSIT_TRACKING_STATUS_CODES.has(
-    tracking.statusCode.trim().toUpperCase(),
+  return (
+    IN_TRANSIT_TRACKING_STATUS_CODES.has(
+      tracking.statusCode.trim().toUpperCase(),
+    ) &&
+    isDateOnOrBeforeToday(tracking.lastEventDate ?? tracking.trackedAt)
   );
 }
 
@@ -646,6 +649,29 @@ function isDepartureTrackingPoint(point: TrackingRoutePoint) {
     "zarpado",
     "embarcado",
   ].some((keyword) => description.includes(keyword));
+}
+
+function hasConfirmedTrackingDeparture(
+  shipment: ShipmentSummary,
+  tracking: ContainerTrackingSnapshot | null,
+) {
+  if (isDateOnOrBeforeToday(shipment.atd)) {
+    return true;
+  }
+
+  if (!tracking || tracking.locationSource === "PROGRESS_ESTIMATE") {
+    return false;
+  }
+
+  if (tracking.routePoints.some(isDepartureTrackingPoint)) {
+    return true;
+  }
+
+  if (shipment.etd && !isDateOnOrBeforeToday(shipment.etd)) {
+    return false;
+  }
+
+  return isTrackingInTransit(tracking);
 }
 
 function isTrackingArrived(tracking: ContainerTrackingSnapshot | null) {
@@ -1355,9 +1381,7 @@ function TrackingTimeline({
     isDepartureTrackingPoint,
   );
   const hasAtd =
-    isDateOnOrBeforeToday(shipment.atd) ||
-    Boolean(trackingDeparturePoint) ||
-    isTrackingInTransit(tracking);
+    hasConfirmedTrackingDeparture(shipment, tracking);
   const hasAta = shipmentHasArrived || trackingHasArrived;
 
   const departureDate = trackingDeparturePoint?.date
@@ -1810,7 +1834,13 @@ export function ClientHomeDashboard({
         return null;
       }
 
-      return getContainerTracking(shipment) ?? getVesselTracking(shipment);
+      const tracking = getContainerTracking(shipment) ?? getVesselTracking(shipment);
+
+      if (!tracking || !hasConfirmedTrackingDeparture(shipment, tracking)) {
+        return null;
+      }
+
+      return tracking;
     },
     [getContainerTracking, getVesselTracking],
   );

@@ -114,10 +114,7 @@ export async function POST(request: NextRequest) {
 
   await upsertPortalClientUserRecord(updatedUser);
 
-  const destination = user.requiresPasswordReset
-    ? "/seguridad?required=1"
-    : nextPath;
-  const response = NextResponse.redirect(buildRequestUrl(request, destination), {
+  const response = NextResponse.redirect(buildRequestUrl(request, nextPath), {
     status: 303,
   });
   setSessionCookie(response, await createPortalSessionToken(updatedUser));
