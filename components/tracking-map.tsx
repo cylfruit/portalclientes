@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, useMemo, useEffect, useState } from "react";
+import { Fragment, memo, useMemo, useEffect, useRef, useState } from "react";
 import {
   divIcon,
   latLngBounds,
@@ -18,6 +18,7 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
+import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import type {
   TrackingRoutePoint,
   TrackedShipmentItem,
@@ -40,10 +41,17 @@ type PreparedTrackedItem = {
 
 const DEFAULT_CENTER: [number, number] = [2.5, -35];
 const DEFAULT_ZOOM = 2;
-const CARTO_LIGHT_TILES =
-  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const CARTO_DARK_TILES =
-  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+// Estilos vectoriales de OpenFreeMap: son los mismos Positron / Dark Matter que
+// usaba CARTO, pero servidos sin API key ni limite de uso.
+const OPEN_FREE_MAP_LIGHT_STYLE = "https://tiles.openfreemap.org/styles/positron";
+const OPEN_FREE_MAP_DARK_STYLE = "https://tiles.openfreemap.org/styles/dark";
+// Respaldo raster (tambien sin API key) para navegadores sin WebGL 2.
+const RASTER_FALLBACK_LIGHT_TILES =
+  "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+const RASTER_FALLBACK_DARK_TILES =
+  "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+const RASTER_FALLBACK_ATTRIBUTION =
+  'Tiles &copy; <a href="https://www.esri.com/">Esri</a>';
 const WORLD_BOUNDS: LatLngBoundsExpression = [
   [-75, -180],
   [85, 180],
@@ -83,6 +91,96 @@ const trackingMapCopy = {
   },
 } as const;
 
+type VectorBasemapProps = {
+  styleUrl: string;
+  fallbackTileUrl: string;
+};
+
+type VectorBasemapLayer = ReturnType<typeof maplibreGL>;
+
+const supportsWebGl = () => {
+  try {
+    return Boolean(document.createElement("canvas").getContext("webgl2"));
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Basemap vectorial (MapLibre GL) montado como capa de Leaflet. Si el navegador
+ * no soporta WebGL 2 o el estilo no carga, cae a un basemap raster equivalente.
+ */
+const VectorBasemap = ({ styleUrl, fallbackTileUrl }: VectorBasemapProps) => {
+  const map = useMap();
+  const layerRef = useRef<VectorBasemapLayer | null>(null);
+  const styleUrlRef = useRef(styleUrl);
+  const [useRasterFallback, setUseRasterFallback] = useState(
+    () => !supportsWebGl(),
+  );
+
+  useEffect(() => {
+    styleUrlRef.current = styleUrl;
+
+    const layer = layerRef.current;
+
+    if (!layer) {
+      return;
+    }
+
+    layer.getMaplibreMap().setStyle(styleUrl);
+  }, [styleUrl]);
+
+  useEffect(() => {
+    if (useRasterFallback) {
+      return;
+    }
+
+    let layer: VectorBasemapLayer;
+
+    try {
+      layer = maplibreGL({ style: styleUrlRef.current });
+      layer.addTo(map);
+    } catch {
+      // Diferido para no encadenar renders sincronicos dentro del efecto.
+      queueMicrotask(() => setUseRasterFallback(true));
+      return;
+    }
+
+    layerRef.current = layer;
+
+    const glMap = layer.getMaplibreMap();
+    const handleGlError = () => {
+      // Solo degradamos si el estilo nunca llego a cargar; los errores de tiles
+      // sueltos son transitorios y MapLibre los reintenta.
+      if (glMap.isStyleLoaded()) {
+        return;
+      }
+
+      setUseRasterFallback(true);
+    };
+
+    glMap.on("error", handleGlError);
+
+    return () => {
+      glMap.off("error", handleGlError);
+      layerRef.current = null;
+      map.removeLayer(layer);
+    };
+  }, [map, useRasterFallback]);
+
+  if (!useRasterFallback) {
+    return null;
+  }
+
+  return (
+    <TileLayer
+      key={fallbackTileUrl}
+      attribution={RASTER_FALLBACK_ATTRIBUTION}
+      url={fallbackTileUrl}
+    />
+  );
+};
+
 const TrackingMapComponent = ({
   items,
   locale,
@@ -92,7 +190,10 @@ const TrackingMapComponent = ({
 }: TrackingMapProps) => {
   const copy = trackingMapCopy[locale];
   const theme = useDocumentTheme();
-  const tileUrl = theme === "dark" ? CARTO_DARK_TILES : CARTO_LIGHT_TILES;
+  const basemapStyleUrl =
+    theme === "dark" ? OPEN_FREE_MAP_DARK_STYLE : OPEN_FREE_MAP_LIGHT_STYLE;
+  const fallbackTileUrl =
+    theme === "dark" ? RASTER_FALLBACK_DARK_TILES : RASTER_FALLBACK_LIGHT_TILES;
   const preparedItems = useMemo<PreparedTrackedItem[]>(() => {
     return items.map((item) => ({
       item,
@@ -215,10 +316,9 @@ const TrackingMapComponent = ({
         maxBoundsViscosity={1}
         className="h-full w-full"
       >
-        <TileLayer
-          key={tileUrl}
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url={tileUrl}
+        <VectorBasemap
+          styleUrl={basemapStyleUrl}
+          fallbackTileUrl={fallbackTileUrl}
         />
         <FitTrackingBounds positions={boundsPositions} />
 

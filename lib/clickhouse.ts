@@ -129,6 +129,7 @@ type ClickHouseJsonResponse<T> = {
 };
 
 const DEFAULT_CLICKHOUSE_TIMEOUT_MS = 30_000;
+const DEFAULT_EMBARQUE_SEASON = "2026-2027";
 
 function getRequiredEnv(name: string) {
   const value = process.env[name];
@@ -769,6 +770,14 @@ function hasHiddenSeasonValue(value: string | null | undefined) {
   );
 }
 
+function isDefaultEmbarqueSeason(
+  season: Pick<ShipmentSeasonOption, "code" | "description">,
+) {
+  const values = [season.code, season.description].map(normalizeSeasonLabel);
+
+  return values.some((value) => /\b2026\s*-\s*2027\b/.test(value));
+}
+
 export function isHiddenEmbarqueSeason(
   season: Pick<ShipmentSeasonOption, "code" | "description"> | string | null | undefined,
 ) {
@@ -847,7 +856,7 @@ function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
   const safeLimit =
     Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 500;
   const season =
-    options.season?.trim() ?? process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
+    options.season?.trim() ?? DEFAULT_EMBARQUE_SEASON;
   const search = options.search?.trim() ?? null;
   const conditions: string[] = [];
 
@@ -1221,7 +1230,7 @@ export function resolveDefaultEmbarqueSeasonCode(
   seasons: ShipmentSeasonOption[],
 ) {
   return (
-    seasons.find((season) => season.isActive)?.code ?? seasons[0]?.code ?? null
+    seasons.find(isDefaultEmbarqueSeason)?.code ?? DEFAULT_EMBARQUE_SEASON
   );
 }
 

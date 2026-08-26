@@ -32,14 +32,9 @@ export async function GET(request: NextRequest) {
       : null;
   const search = searchParams.get("search") ?? undefined;
   const seasons = await fetchEmbarqueSeasons();
-  const configuredDefaultSeason = process.env.CLICKHOUSE_DEFAULT_SEASON?.trim();
   const resolvedSeason =
     season ??
-    resolveDefaultEmbarqueSeasonCode(seasons) ??
-    (configuredDefaultSeason && !isHiddenEmbarqueSeason(configuredDefaultSeason)
-      ? configuredDefaultSeason
-      : null) ??
-    null;
+    resolveDefaultEmbarqueSeasonCode(seasons);
 
   const rows = await fetchEmbarqueRowsWithSeasonFallback({
     season: resolvedSeason,

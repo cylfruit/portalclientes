@@ -1,3 +1,10 @@
+const MAP_TILE_CSP_SOURCES = [
+  // Basemap vectorial (estilo, tiles, sprites y fuentes) sin API key.
+  "https://tiles.openfreemap.org",
+  // Respaldo raster para navegadores sin WebGL 2.
+  "https://services.arcgisonline.com",
+] as const;
+
 const CLARITY_CSP_SOURCES = [
   "https://www.clarity.ms",
   "https://*.clarity.ms",
@@ -19,8 +26,7 @@ export function getContentSecurityPolicy(nonce?: string): string {
   const isDevelopment = process.env.NODE_ENV !== "production";
   const connectSources = [
     "'self'",
-    "https://*.tile.openstreetmap.org",
-    "https://*.basemaps.cartocdn.com",
+    ...MAP_TILE_CSP_SOURCES,
     ...CLARITY_CSP_SOURCES,
   ];
 
@@ -64,9 +70,11 @@ export function getContentSecurityPolicy(nonce?: string): string {
     `style-src ${styleSources.join(" ")}`,
     `style-src-elem ${styleElementSources.join(" ")}`,
     "style-src-attr 'unsafe-inline'",
-    `img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com ${CLARITY_CSP_SOURCES.join(" ")}`,
+    `img-src 'self' data: blob: ${MAP_TILE_CSP_SOURCES.join(" ")} ${CLARITY_CSP_SOURCES.join(" ")}`,
     "font-src 'self' data:",
     `connect-src ${connectSources.join(" ")}`,
+    "worker-src 'self' blob:",
+    "child-src 'self' blob:",
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
