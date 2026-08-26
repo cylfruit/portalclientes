@@ -18,6 +18,9 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
+// maplibre-gl se mantiene en la linea 5.x a proposito: desde la 6 el worker deja
+// de ir embebido y se emite como /_next/static/media/*.mjs, que en produccion no
+// se sirve como JavaScript y rompe el mapa. La 5.x crea el worker desde un blob.
 import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
 import type {
   TrackingRoutePoint,
@@ -52,6 +55,9 @@ const RASTER_FALLBACK_DARK_TILES =
   "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
 const RASTER_FALLBACK_ATTRIBUTION =
   'Tiles &copy; <a href="https://www.esri.com/">Esri</a>';
+// Si el estilo vectorial no termina de cargar en este plazo, mostramos el
+// basemap raster en vez de dejar el mapa en blanco.
+const VECTOR_BASEMAP_TIMEOUT_MS = 10_000;
 const WORLD_BOUNDS: LatLngBoundsExpression = [
   [-75, -180],
   [85, 180],
@@ -149,20 +155,35 @@ const VectorBasemap = ({ styleUrl, fallbackTileUrl }: VectorBasemapProps) => {
     layerRef.current = layer;
 
     const glMap = layer.getMaplibreMap();
+    let styleLoaded = false;
     const handleGlError = () => {
       // Solo degradamos si el estilo nunca llego a cargar; los errores de tiles
       // sueltos son transitorios y MapLibre los reintenta.
-      if (glMap.isStyleLoaded()) {
+      if (styleLoaded || glMap.isStyleLoaded()) {
         return;
       }
 
       setUseRasterFallback(true);
     };
+    const handleGlLoad = () => {
+      styleLoaded = true;
+      window.clearTimeout(timeoutId);
+    };
+    const timeoutId = window.setTimeout(() => {
+      if (styleLoaded || glMap.isStyleLoaded()) {
+        return;
+      }
+
+      setUseRasterFallback(true);
+    }, VECTOR_BASEMAP_TIMEOUT_MS);
 
     glMap.on("error", handleGlError);
+    glMap.on("load", handleGlLoad);
 
     return () => {
+      window.clearTimeout(timeoutId);
       glMap.off("error", handleGlError);
+      glMap.off("load", handleGlLoad);
       layerRef.current = null;
       map.removeLayer(layer);
     };
