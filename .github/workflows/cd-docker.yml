@@ -137,4 +137,9 @@ jobs:
             -e HOSTNAME=0.0.0.0 \
             -e PORT="$APP_PORT" \
             -p "$APP_PORT:$APP_PORT" \
+            --label "traefik.enable=true" \
+            --label "traefik.http.routers.portalclientes.rule=Host(\`clients.cylfruit.cl\`)" \
+            --label "traefik.http.routers.portalclientes.entrypoints=web" \
+            --label "traefik.http.routers.portalclientes.middlewares=cyl-default@file" \
+            --label "traefik.http.services.portalclientes.loadbalancer.server.port=4300" \
             "$IMAGE_NAME:latest"
