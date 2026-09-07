@@ -131,6 +131,7 @@ jobs:
           docker run -d \
             --name "$CONTAINER_NAME" \
             --restart unless-stopped \
+            -e TZ=America/Santiago \
             --network "$DOCKER_NETWORK" \
             --env-file "$ENV_FILE" \
             -e HOST=0.0.0.0 \
