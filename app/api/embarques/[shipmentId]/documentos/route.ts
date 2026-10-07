@@ -11,7 +11,9 @@ import {
 import {
   CUSTOMER_VISIBLE_UNAVAILABLE_DOCUMENT_TYPES,
   isCustomerVisibleDocumentType,
+  isRejectedFullSet,
   normalizeDocumentType,
+  resolveFullSetApproval,
   shouldExposeCustomerDocument,
 } from "@/lib/shipment-documents-visibility";
 
@@ -182,6 +184,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
         size: document.size,
         createdAt: document.created_at,
         updatedAt: document.updated_at,
+        // Solo el Full Set se aprueba; el rechazado ya no llega acá (visibilidad).
+        approval: resolveFullSetApproval(document),
         viewUrl: buildProxyDocumentUrl({
           requestedShipmentId: shipmentId,
           documentShipmentId,
@@ -207,7 +211,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if (
         items.length === 0 &&
         (payload.resumen?.total_documentos ?? 0) > 0 &&
-        payload.data!.filter(shouldExposeCustomerDocument).length === 0
+        payload.data!.filter(shouldExposeCustomerDocument).length === 0 &&
+        // Un Full Set rechazado por el cliente no se muestra ni como "no disponible".
+        !(payload.data!.length > 0 && payload.data!.every(isRejectedFullSet))
       ) {
         unavailableTypes = [normalizeDocumentType(type)];
       }
@@ -229,8 +235,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
           const visibleTypedDocuments =
             typedPayload.data?.filter(shouldExposeCustomerDocument) ?? [];
 
+          const onlyRejected =
+            (typedPayload.data?.length ?? 0) > 0 &&
+            typedPayload.data!.every(isRejectedFullSet);
+
           return (typedPayload.resumen?.total_documentos ?? 0) > 0 &&
-            visibleTypedDocuments.length === 0
+            visibleTypedDocuments.length === 0 &&
+            !onlyRejected
             ? documentType
             : null;
         }),

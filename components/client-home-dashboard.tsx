@@ -11,6 +11,10 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import {
+  FullSetPortalApproval,
+  type FullSetApprovalInfo,
+} from "@/components/fullset-portal-approval";
+import {
   buildShipmentsFromRows,
   type ContainerTrackingSnapshot,
   formatDate,
@@ -52,6 +56,8 @@ type ShipmentDocumentItem = {
   size: number | null;
   createdAt: string | null;
   updatedAt: string | null;
+  /** Solo Full Set: estado de aprobación del cliente (null en los demás documentos). */
+  approval?: FullSetApprovalInfo | null;
   viewUrl: string;
   downloadUrl: string;
 };
@@ -112,6 +118,7 @@ export type ClientHomeDashboardProps = {
   defaultSeason: string | null;
   errorMessage?: string | null;
   trackingErrorMessage?: string | null;
+  csrfToken?: string | null;
 };
 
 // ─── Copy ─────────────────────────────────────────────────────────────────────
@@ -1058,11 +1065,13 @@ function ShipmentDocumentsGrid({
   locale,
   state,
   onRetry,
+  csrfToken,
 }: {
   copy: (typeof dashboardCopy)[PortalLocale];
   locale: PortalLocale;
   state: ShipmentDocumentsLoadState;
   onRetry: () => void;
+  csrfToken: string | null;
 }) {
   if (
     (state.status === "idle" || state.status === "loading") &&
@@ -1192,6 +1201,17 @@ function ShipmentDocumentsGrid({
                 {copy.docUpdatedAt}: {formatTrackingDate(doc.updatedAt, locale)}
               </span>
             </div>
+
+            {doc.approval ? (
+              <FullSetPortalApproval
+                csrfToken={csrfToken}
+                shipmentId={doc.shipmentId}
+                season={doc.season}
+                documentId={doc.id}
+                approval={doc.approval}
+                locale={locale}
+              />
+            ) : null}
 
             <div className="mt-3 flex flex-wrap gap-2">
               <a
@@ -1509,6 +1529,7 @@ function ShipmentExpandedRow({
   onLoadDocs,
   onReloadDocs,
   onClose,
+  csrfToken,
 }: {
   shipment: ShipmentSummary;
   tracking: ContainerTrackingSnapshot | null;
@@ -1518,6 +1539,7 @@ function ShipmentExpandedRow({
   onLoadDocs: () => void;
   onReloadDocs: () => void;
   onClose: () => void;
+  csrfToken: string | null;
 }) {
   const metaRows: [string, string][] = [
     [copy.etdLabel, formatDate(shipment.etd, locale)],
@@ -1622,6 +1644,7 @@ function ShipmentExpandedRow({
               locale={locale}
               state={docsState}
               onRetry={onReloadDocs}
+              csrfToken={csrfToken}
             />
           </div>
         </div>
@@ -1643,6 +1666,7 @@ export function ClientHomeDashboard({
   defaultSeason,
   errorMessage,
   trackingErrorMessage,
+  csrfToken = null,
 }: ClientHomeDashboardProps) {
   const copy = dashboardCopy[locale];
 
@@ -2664,6 +2688,7 @@ export function ClientHomeDashboard({
                                   void loadDocs(shipment, true)
                                 }
                                 onClose={() => setExpandedKey(null)}
+                                csrfToken={csrfToken}
                               />
                             </td>
                           </tr>

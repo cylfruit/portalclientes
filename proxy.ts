@@ -12,6 +12,18 @@ import {
   getContentSecurityPolicy,
 } from "@/lib/security-headers";
 
+// Aprobación del Full Set por link del correo: el cliente llega sin sesión. El
+// acceso lo da el token del link (en el fragmento de la URL), validado por el
+// backend; cada ruta API exige además CSRF y limita los intentos.
+function isFullSetApprovalPath(pathname: string) {
+  return (
+    pathname === "/aprobacion-fullset" ||
+    pathname === "/api/aprobacion-fullset/consultar" ||
+    pathname === "/api/aprobacion-fullset/archivo" ||
+    pathname === "/api/aprobacion-fullset/decision"
+  );
+}
+
 function isPublicPath(pathname: string) {
   return (
     pathname === "/login" ||
@@ -20,7 +32,8 @@ function isPublicPath(pathname: string) {
     pathname === "/api/auth/login" ||
     pathname === "/api/auth/logout" ||
     pathname === "/api/auth/forgot-password" ||
-    pathname === "/api/auth/reset-password"
+    pathname === "/api/auth/reset-password" ||
+    isFullSetApprovalPath(pathname)
   );
 }
 
@@ -61,6 +74,11 @@ export async function proxy(request: NextRequest) {
       response.headers.set(key, value);
     }
     response.headers.set("Content-Security-Policy", contentSecurityPolicy);
+
+    if (isFullSetApprovalPath(pathname)) {
+      response.headers.set("Referrer-Policy", "no-referrer");
+      response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    }
 
     if (
       response.status >= 300 &&
