@@ -5,6 +5,7 @@ import {
   MAX_COMMENT_LENGTH,
   MIN_REJECTION_COMMENT_LENGTH,
 } from "@/lib/fullset-approval-input";
+import { FullSetImagePicker } from "@/components/fullset-image-picker";
 
 type Locale = "es" | "en";
 
@@ -21,11 +22,10 @@ const copy = {
     approve: "Aprobar",
     reject: "Rechazar",
     sending: "Enviando...",
-    reasonLabel: "Motivo del rechazo",
-    reasonPlaceholder: "Cuéntanos qué debemos corregir",
-    reasonTooShort: `Describe el motivo (mínimo ${MIN_REJECTION_COMMENT_LENGTH} caracteres).`,
-    confirmReject: "Confirmar rechazo",
-    cancel: "Cancelar",
+    notesLabel: "Observaciones",
+    notesPlaceholder:
+      "Opcional al aprobar: puedes indicar una dirección u otra indicación. Si rechazas, cuéntanos el motivo.",
+    notesRequiredToReject: `Para rechazar, escribe el motivo en las observaciones (mínimo ${MIN_REJECTION_COMMENT_LENGTH} caracteres).`,
     approvedNow: "Registramos tu aprobación.",
     rejectedNow:
       "Registramos tu rechazo. Este documento dejará de mostrarse hasta que subamos una versión corregida.",
@@ -39,11 +39,10 @@ const copy = {
     approve: "Approve",
     reject: "Reject",
     sending: "Sending...",
-    reasonLabel: "Reason for rejection",
-    reasonPlaceholder: "Tell us what we need to correct",
-    reasonTooShort: `Describe the reason (at least ${MIN_REJECTION_COMMENT_LENGTH} characters).`,
-    confirmReject: "Confirm rejection",
-    cancel: "Cancel",
+    notesLabel: "Notes",
+    notesPlaceholder:
+      "Optional when approving: you can add an address or any other instruction. If you reject, tell us why.",
+    notesRequiredToReject: `To reject, write the reason in the notes (at least ${MIN_REJECTION_COMMENT_LENGTH} characters).`,
     approvedNow: "Your approval was recorded.",
     rejectedNow:
       "Your rejection was recorded. This document will stop being shown until we upload a corrected version.",
@@ -58,7 +57,8 @@ type LocalOutcome = "APROBADO" | "RECHAZADO" | null;
 /**
  * Aprobación del Full Set por el cliente que ya tiene sesión en el portal (no
  * necesita el link del correo). El backend aplica la misma regla que el link: la
- * decisión es única y rechazar exige motivo.
+ * decisión es única, rechazar exige motivo y las observaciones son opcionales al
+ * aprobar.
  */
 export function FullSetPortalApproval({
   csrfToken,
@@ -77,8 +77,9 @@ export function FullSetPortalApproval({
 }) {
   const labels = copy[locale];
   const [outcome, setOutcome] = useState<LocalOutcome>(null);
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [notesMissing, setNotesMissing] = useState(false);
+  const [images, setImages] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,24 +90,50 @@ export function FullSetPortalApproval({
       return;
     }
 
+    if (
+      decision === "RECHAZADO" &&
+      notes.trim().length < MIN_REJECTION_COMMENT_LENGTH
+    ) {
+      setNotesMissing(true);
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/embarques/${encodeURIComponent(shipmentId)}/documentos/${encodeURIComponent(documentId)}/aprobacion`,
-        {
+      const url = `/api/embarques/${encodeURIComponent(shipmentId)}/documentos/${encodeURIComponent(documentId)}/aprobacion`;
+      const payload = {
+        csrfToken,
+        season,
+        decision,
+        comment: notes.trim() || undefined,
+      };
+      let init: RequestInit;
+
+      if (images.length > 0) {
+        // Con imágenes: multipart, JSON en "payload" y CSRF también en la cabecera.
+        const form = new FormData();
+        form.append("payload", JSON.stringify(payload));
+        for (const file of images) {
+          form.append("imagenes", file, file.name);
+        }
+        init = {
+          method: "POST",
+          headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
+          cache: "no-store",
+          body: form,
+        };
+      } else {
+        init = {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
-          body: JSON.stringify({
-            csrfToken,
-            season,
-            decision,
-            comment: decision === "RECHAZADO" ? reason.trim() : undefined,
-          }),
-        },
-      );
+          body: JSON.stringify(payload),
+        };
+      }
+
+      const response = await fetch(url, init);
 
       if (response.status === 409) {
         setError(labels.alreadyAnswered);
@@ -123,7 +150,6 @@ export function FullSetPortalApproval({
       }
 
       setOutcome(decision);
-      setRejecting(false);
     } catch {
       setError(labels.failure);
     } finally {
@@ -158,8 +184,6 @@ export function FullSetPortalApproval({
     return null;
   }
 
-  const reasonTooShort = reason.trim().length < MIN_REJECTION_COMMENT_LENGTH;
-
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-cyl-warning-text/25 bg-cyl-warning-bg/60 p-3">
       <p className="text-xs font-semibold text-cyl-warning-text">
@@ -172,68 +196,55 @@ export function FullSetPortalApproval({
         </p>
       ) : null}
 
-      {rejecting ? (
-        <div className="space-y-2">
-          <label className="block space-y-1">
-            <span className="text-xs font-semibold">{labels.reasonLabel}</span>
-            <textarea
-              value={reason}
-              maxLength={MAX_COMMENT_LENGTH}
-              rows={3}
-              autoFocus
-              placeholder={labels.reasonPlaceholder}
-              onChange={(event) => setReason(event.target.value)}
-              className="w-full rounded-xl border border-cyl-border bg-cyl-card px-3 py-2 text-xs"
-            />
-          </label>
-          {reasonTooShort ? (
-            <p className="text-xs text-cyl-ink/55">{labels.reasonTooShort}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy || reasonTooShort}
-              onClick={() => void submit("RECHAZADO")}
-              className="inline-flex items-center rounded-full bg-cyl-error-text px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-            >
-              {busy ? labels.sending : labels.confirmReject}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setRejecting(false);
-                setError(null);
-              }}
-              className="inline-flex items-center rounded-full border border-cyl-border bg-cyl-surface px-3 py-1.5 text-xs font-semibold transition hover:bg-cyl-surface-alt"
-            >
-              {labels.cancel}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void submit("APROBADO")}
-            className="inline-flex items-center rounded-full bg-cyl-success px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
-          >
-            {busy ? labels.sending : labels.approve}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setRejecting(true);
-              setError(null);
-            }}
-            className="inline-flex items-center rounded-full border border-cyl-error-text/40 bg-cyl-surface px-3 py-1.5 text-xs font-semibold text-cyl-error-text transition hover:bg-cyl-error-bg disabled:opacity-60"
-          >
-            {labels.reject}
-          </button>
-        </div>
-      )}
+      <label className="block space-y-1">
+        <span className="text-xs font-semibold">{labels.notesLabel}</span>
+        <textarea
+          value={notes}
+          maxLength={MAX_COMMENT_LENGTH}
+          rows={3}
+          disabled={busy}
+          aria-invalid={notesMissing}
+          placeholder={labels.notesPlaceholder}
+          onChange={(event) => {
+            setNotes(event.target.value);
+            setNotesMissing(false);
+          }}
+          className={`w-full rounded-xl border bg-cyl-card px-3 py-2 text-xs ${
+            notesMissing ? "border-cyl-error-text" : "border-cyl-border"
+          }`}
+        />
+      </label>
+      {notesMissing ? (
+        <p role="alert" className="text-xs text-cyl-error-text">
+          {labels.notesRequiredToReject}
+        </p>
+      ) : null}
+
+      <FullSetImagePicker
+        files={images}
+        onChange={setImages}
+        disabled={busy}
+        locale={locale}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void submit("APROBADO")}
+          className="inline-flex items-center rounded-full bg-cyl-success px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+        >
+          {busy ? labels.sending : labels.approve}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void submit("RECHAZADO")}
+          className="inline-flex items-center rounded-full border border-cyl-error-text/40 bg-cyl-surface px-3 py-1.5 text-xs font-semibold text-cyl-error-text transition hover:bg-cyl-error-bg disabled:opacity-60"
+        >
+          {labels.reject}
+        </button>
+      </div>
     </div>
   );
 }

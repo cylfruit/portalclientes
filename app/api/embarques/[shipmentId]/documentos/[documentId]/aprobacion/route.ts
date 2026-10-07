@@ -18,6 +18,7 @@ import {
   parseDecision,
   truncateUserAgent,
 } from "@/lib/fullset-approval-input";
+import { readDecisionRequest } from "@/lib/fullset-approval-http";
 import { checkApprovalDecisionRateLimit } from "@/lib/rate-limiter";
 import {
   ShipmentDocumentsApiError,
@@ -37,8 +38,6 @@ type RouteContext = {
     documentId: string;
   }>;
 };
-
-const MAX_BODY_BYTES = 8 * 1024;
 
 async function userCanAccessShipment(
   shipmentId: string,
@@ -73,41 +72,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   const { user } = auth;
 
-  let body: Record<string, unknown>;
-
-  try {
-    const text = await request.text();
-
-    if (text.length > MAX_BODY_BYTES) {
-      return NextResponse.json(
-        { message: "La solicitud es demasiado grande." },
-        { status: 413 },
-      );
-    }
-
-    const parsed: unknown = JSON.parse(text);
-
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("not an object");
-    }
-
-    body = parsed as Record<string, unknown>;
-  } catch {
-    return NextResponse.json(
-      { message: "La solicitud no tiene un formato valido." },
-      { status: 400 },
-    );
-  }
-
-  const csrfResponse = requireValidCsrfToken(
-    request,
-    typeof body.csrfToken === "string" ? body.csrfToken : null,
-  );
-
-  if (csrfResponse) {
-    return csrfResponse;
-  }
-
   // Un usuario que ve todos los embarques es de C&L Fruit, no un cliente: la
   // respuesta del cliente solo la da quien tiene acceso acotado a su propio embarque.
   if (user.canViewAll) {
@@ -132,6 +96,49 @@ export async function POST(request: NextRequest, context: RouteContext) {
           ),
         },
       },
+    );
+  }
+
+  const isMultipart = (request.headers.get("content-type") ?? "")
+    .toLowerCase()
+    .startsWith("multipart/form-data");
+
+  // Con imágenes el CSRF viaja en la cabecera y se valida ANTES de leer el cuerpo.
+  if (isMultipart) {
+    const csrfHeaderResponse = requireValidCsrfToken(
+      request,
+      request.headers.get("x-csrf-token"),
+    );
+
+    if (csrfHeaderResponse) {
+      return csrfHeaderResponse;
+    }
+  }
+
+  const parsed = await readDecisionRequest(request);
+
+  if ("response" in parsed) {
+    return parsed.response;
+  }
+
+  const { body, images } = parsed;
+
+  if (!isMultipart) {
+    const csrfResponse = requireValidCsrfToken(
+      request,
+      typeof body.csrfToken === "string" ? body.csrfToken : null,
+    );
+
+    if (csrfResponse) {
+      return csrfResponse;
+    }
+  }
+
+  // En esta ruta las imágenes van todas en el campo "imagenes".
+  if (images.some((image) => image.field !== "imagenes")) {
+    return NextResponse.json(
+      { message: "La solicitud no tiene un formato valido." },
+      { status: 400 },
     );
   }
 
@@ -209,7 +216,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       season,
       documentId,
       decision,
-      comment: decision === "RECHAZADO" ? comment : undefined,
+      comment: comment || undefined,
+      images,
       approver: {
         nombre: normalizeApproverName(user.fullName) || user.username,
         email: normalizeApproverEmail(user.email),

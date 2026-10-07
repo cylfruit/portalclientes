@@ -8,6 +8,7 @@ import {
   MIN_REJECTION_COMMENT_LENGTH,
   parseApprovalTokenFromHash,
 } from "@/lib/fullset-approval-input";
+import { FullSetImagePicker } from "@/components/fullset-image-picker";
 
 type Locale = "es" | "en";
 
@@ -74,9 +75,11 @@ const copy = {
     approveAll: "Aprobar todos los pendientes",
     confirmReject: "Confirmar rechazo",
     cancel: "Cancelar",
-    rejectReason: "Motivo del rechazo",
-    rejectPlaceholder: "Cuéntanos qué debemos corregir",
-    rejectTooShort: `Describe el motivo (mínimo ${MIN_REJECTION_COMMENT_LENGTH} caracteres).`,
+    notesLabel: "Observaciones",
+    notesPlaceholder:
+      "Opcional al aprobar: puedes indicar una dirección u otra indicación. Si rechazas, cuéntanos el motivo.",
+    notesRequiredToReject: `Para rechazar, escribe el motivo en las observaciones (mínimo ${MIN_REJECTION_COMMENT_LENGTH} caracteres).`,
+    yourNotes: "Tus observaciones",
     sending: "Enviando...",
     states: {
       PENDIENTE: "Pendiente de tu respuesta",
@@ -136,9 +139,11 @@ const copy = {
     approveAll: "Approve all pending",
     confirmReject: "Confirm rejection",
     cancel: "Cancel",
-    rejectReason: "Reason for rejection",
-    rejectPlaceholder: "Tell us what we need to correct",
-    rejectTooShort: `Describe the reason (at least ${MIN_REJECTION_COMMENT_LENGTH} characters).`,
+    notesLabel: "Notes",
+    notesPlaceholder:
+      "Optional when approving: you can add an address or any other instruction. If you reject, tell us why.",
+    notesRequiredToReject: `To reject, write the reason in the notes (at least ${MIN_REJECTION_COMMENT_LENGTH} characters).`,
+    yourNotes: "Your notes",
     sending: "Sending...",
     states: {
       PENDIENTE: "Waiting for your answer",
@@ -217,6 +222,32 @@ async function postJson(path: string, body: Record<string, unknown>) {
   });
 }
 
+/**
+ * Respuesta con imágenes: multipart con el JSON en "payload". El CSRF va además en
+ * la cabecera para que el servidor lo valide antes de leer las imágenes.
+ */
+async function postMultipart(
+  path: string,
+  body: Record<string, unknown>,
+  files: { field: string; file: File }[],
+  csrfToken: string | null,
+) {
+  const form = new FormData();
+  form.append("payload", JSON.stringify(body));
+
+  for (const { field, file } of files) {
+    form.append(field, file, file.name);
+  }
+
+  return fetch(path, {
+    method: "POST",
+    headers: csrfToken ? { "X-CSRF-Token": csrfToken } : undefined,
+    cache: "no-store",
+    credentials: "same-origin",
+    body: form,
+  });
+}
+
 export function FullSetApprovalPanel({
   csrfToken,
   initialLocale,
@@ -229,8 +260,11 @@ export function FullSetApprovalPanel({
   const [locale, setLocale] = useState<Locale>(initialLocale);
   const [approverName, setApproverName] = useState("");
   const [approverEmail, setApproverEmail] = useState("");
-  const [rejectingId, setRejectingId] = useState<number | null>(null);
-  const [rejectText, setRejectText] = useState("");
+  // Observaciones por Full Set (opcionales al aprobar, obligatorias al rechazar).
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [notesError, setNotesError] = useState<number | null>(null);
+  // Imágenes por Full Set (opcionales), p. ej. un pantallazo del error.
+  const [images, setImages] = useState<Record<number, File[]>>({});
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
     type: "success" | "error";
@@ -284,7 +318,9 @@ export function FullSetApprovalPanel({
 
       setToken(found);
       setNotice(null);
-      setRejectingId(null);
+      setNotes({});
+      setNotesError(null);
+      setImages({});
       void load(found);
     }
 
@@ -388,13 +424,28 @@ export function FullSetApprovalPanel({
     setNotice(null);
 
     try {
-      const response = await postJson("/api/aprobacion-fullset/decision", {
+      const payloadBody = {
         csrfToken,
         token,
         approverName: approverName.trim(),
         approverEmail: approverEmail.trim(),
         decisions,
-      });
+      };
+      const attached = decisions.flatMap((d) =>
+        (images[d.documentoId] ?? []).map((file) => ({
+          field: `imagenes_${d.documentoId}`,
+          file,
+        })),
+      );
+      const response =
+        attached.length > 0
+          ? await postMultipart(
+              "/api/aprobacion-fullset/decision",
+              payloadBody,
+              attached,
+              csrfToken,
+            )
+          : await postJson("/api/aprobacion-fullset/decision", payloadBody);
       const payload = (await response.json()) as {
         results?: DecisionResult[];
         message?: string;
@@ -433,8 +484,7 @@ export function FullSetApprovalPanel({
           return {
             ...item,
             estado: sent.decision,
-            observaciones:
-              sent.decision === "RECHAZADO" ? (sent.observaciones ?? null) : null,
+            observaciones: sent.observaciones ?? null,
             // La hora oficial la fija el servidor (hora de Chile); se muestra al recargar.
             decididoEn: null,
           };
@@ -474,8 +524,14 @@ export function FullSetApprovalPanel({
         setNotice({ type: "error", message: labels.alreadyAnswered });
       }
 
-      setRejectingId(null);
-      setRejectText("");
+      setNotesError(null);
+      setImages((current) => {
+        const next = { ...current };
+        for (const result of results) {
+          if (result.ok) delete next[result.documentoId];
+        }
+        return next;
+      });
     } catch {
       setNotice({ type: "error", message: labels.genericFailure });
     } finally {
@@ -599,10 +655,9 @@ export function FullSetApprovalPanel({
       ) : (
         <ul className="space-y-3">
           {items.map((item) => {
-            const rejecting = rejectingId === item.documentoId;
             const decidedOn = formatChileDate(item.decididoEn, locale);
-            const reasonTooShort =
-              rejectText.trim().length < MIN_REJECTION_COMMENT_LENGTH;
+            const note = notes[item.documentoId] ?? "";
+            const noteMissing = notesError === item.documentoId;
 
             return (
               <li
@@ -638,9 +693,15 @@ export function FullSetApprovalPanel({
                 {item.estado === "NO_DISPONIBLE" ? (
                   <p className="mt-3 text-xs text-cyl-ink/65">{labels.unavailableHelp}</p>
                 ) : null}
-                {item.estado === "RECHAZADO" && item.observaciones ? (
+                {(item.estado === "RECHAZADO" || item.estado === "APROBADO") &&
+                item.observaciones ? (
                   <p className="mt-3 whitespace-pre-line rounded-xl bg-cyl-surface-alt px-3 py-2 text-xs text-cyl-ink/75">
-                    <span className="font-semibold">{labels.yourReason}:</span>{" "}
+                    <span className="font-semibold">
+                      {item.estado === "RECHAZADO"
+                        ? labels.yourReason
+                        : labels.yourNotes}
+                      :
+                    </span>{" "}
                     {item.observaciones}
                   </p>
                 ) : null}
@@ -670,79 +731,100 @@ export function FullSetApprovalPanel({
                   </div>
                 ) : null}
 
-                {item.estado === "PENDIENTE" && !rejecting ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void submitDecisions([
-                          { documentoId: item.documentoId, decision: "APROBADO" },
-                        ])
-                      }
-                      className="inline-flex flex-1 items-center justify-center rounded-2xl bg-cyl-success px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60 sm:flex-none"
-                    >
-                      {busy ? labels.sending : labels.approve}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setRejectingId(item.documentoId);
-                        setRejectText("");
-                        setNotice(null);
-                      }}
-                      className="inline-flex flex-1 items-center justify-center rounded-2xl border border-cyl-error-text/40 px-5 py-2.5 text-sm font-semibold text-cyl-error-text transition hover:bg-cyl-error-bg disabled:opacity-60 sm:flex-none"
-                    >
-                      {labels.reject}
-                    </button>
-                  </div>
-                ) : null}
-
-                {item.estado === "PENDIENTE" && rejecting ? (
+                {item.estado === "PENDIENTE" ? (
                   <div className="mt-4 space-y-3">
                     <label className="block space-y-1.5">
-                      <span className="text-xs font-semibold">{labels.rejectReason}</span>
+                      <span className="text-xs font-semibold">
+                        {labels.notesLabel}
+                      </span>
                       <textarea
-                        value={rejectText}
+                        id={`notes-${item.documentoId}`}
+                        value={note}
                         maxLength={MAX_COMMENT_LENGTH}
-                        rows={4}
-                        autoFocus
-                        placeholder={labels.rejectPlaceholder}
-                        onChange={(event) => setRejectText(event.target.value)}
-                        className="w-full rounded-xl border border-cyl-border bg-cyl-card px-3 py-2 text-sm"
+                        rows={3}
+                        disabled={busy}
+                        aria-invalid={noteMissing}
+                        placeholder={labels.notesPlaceholder}
+                        onChange={(event) => {
+                          setNotes((current) => ({
+                            ...current,
+                            [item.documentoId]: event.target.value,
+                          }));
+                          setNotesError(null);
+                        }}
+                        className={`w-full rounded-xl border bg-cyl-card px-3 py-2 text-sm ${
+                          noteMissing
+                            ? "border-cyl-error-text"
+                            : "border-cyl-border"
+                        }`}
                       />
                     </label>
-                    <div className="flex items-center justify-between text-xs text-cyl-ink/55">
-                      <span>{reasonTooShort ? labels.rejectTooShort : ""}</span>
-                      <span>
-                        {rejectText.length}/{MAX_COMMENT_LENGTH}
+                    <div className="flex items-start justify-between gap-3 text-xs">
+                      <span
+                        role={noteMissing ? "alert" : undefined}
+                        className="text-cyl-error-text"
+                      >
+                        {noteMissing ? labels.notesRequiredToReject : ""}
+                      </span>
+                      <span className="shrink-0 text-cyl-ink/55">
+                        {note.length}/{MAX_COMMENT_LENGTH}
                       </span>
                     </div>
+                    <FullSetImagePicker
+                      files={images[item.documentoId] ?? []}
+                      disabled={busy}
+                      locale={locale}
+                      onChange={(files) =>
+                        setImages((current) => ({
+                          ...current,
+                          [item.documentoId]: files,
+                        }))
+                      }
+                    />
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        disabled={busy || reasonTooShort}
+                        disabled={busy}
                         onClick={() =>
                           void submitDecisions([
                             {
                               documentoId: item.documentoId,
-                              decision: "RECHAZADO",
-                              observaciones: rejectText.trim(),
+                              decision: "APROBADO",
+                              ...(note.trim()
+                                ? { observaciones: note.trim() }
+                                : {}),
                             },
                           ])
                         }
-                        className="inline-flex flex-1 items-center justify-center rounded-2xl bg-cyl-error-text px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60 sm:flex-none"
+                        className="inline-flex flex-1 items-center justify-center rounded-2xl bg-cyl-success px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-60 sm:flex-none"
                       >
-                        {busy ? labels.sending : labels.confirmReject}
+                        {busy ? labels.sending : labels.approve}
                       </button>
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => setRejectingId(null)}
-                        className="inline-flex flex-1 items-center justify-center rounded-2xl border border-cyl-border px-5 py-2.5 text-sm font-semibold transition hover:bg-cyl-surface-alt sm:flex-none"
+                        onClick={() => {
+                          if (
+                            note.trim().length < MIN_REJECTION_COMMENT_LENGTH
+                          ) {
+                            setNotesError(item.documentoId);
+                            document
+                              .getElementById(`notes-${item.documentoId}`)
+                              ?.focus();
+                            return;
+                          }
+
+                          void submitDecisions([
+                            {
+                              documentoId: item.documentoId,
+                              decision: "RECHAZADO",
+                              observaciones: note.trim(),
+                            },
+                          ]);
+                        }}
+                        className="inline-flex flex-1 items-center justify-center rounded-2xl border border-cyl-error-text/40 px-5 py-2.5 text-sm font-semibold text-cyl-error-text transition hover:bg-cyl-error-bg disabled:opacity-60 sm:flex-none"
                       >
-                        {labels.cancel}
+                        {labels.reject}
                       </button>
                     </div>
                   </div>
@@ -759,10 +841,15 @@ export function FullSetApprovalPanel({
           disabled={busy}
           onClick={() =>
             void submitDecisions(
-              pendingItems.map((item) => ({
-                documentoId: item.documentoId,
-                decision: "APROBADO" as const,
-              })),
+              pendingItems.map((item) => {
+                const note = (notes[item.documentoId] ?? "").trim();
+
+                return {
+                  documentoId: item.documentoId,
+                  decision: "APROBADO" as const,
+                  ...(note ? { observaciones: note } : {}),
+                };
+              }),
             )
           }
           className="inline-flex w-full items-center justify-center rounded-2xl bg-cyl-action px-5 py-3 text-sm font-semibold text-cyl-black transition hover:bg-cyl-action-hover disabled:opacity-60"

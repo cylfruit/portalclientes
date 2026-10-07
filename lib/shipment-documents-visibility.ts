@@ -51,7 +51,11 @@ export function isCustomerVisibleDocumentType(type: string) {
 
 type ApprovalFields = Pick<
   DocumentsApiShipmentDocument,
-  "estado" | "tipo" | "estado_aprobacion_cliente" | "es_ultimo_full_set"
+  | "estado"
+  | "tipo"
+  | "estado_aprobacion_cliente"
+  | "es_ultimo_full_set"
+  | "requiere_aprobacion_cliente"
 >;
 
 /**
@@ -103,6 +107,7 @@ export function resolveFullSetApproval(
     | "estado_aprobacion_cliente"
     | "es_ultimo_full_set"
     | "fecha_aprobacion_cliente"
+    | "requiere_aprobacion_cliente"
   >,
 ): FullSetApproval | null {
   if (normalizeDocumentType(document.tipo) !== "FULL_SET") {
@@ -119,6 +124,13 @@ export function resolveFullSetApproval(
   }
 
   if (raw === "NO_NECESITA_ENVIO") {
+    return { status: "NO_REQUIERE", canDecide: false, decidedAt };
+  }
+
+  // Solo se le pide respuesta al cliente cuando el backend lo indica (mercado China,
+  // transporte no aéreo). Si no lo indica o no se pudo determinar, no se ofrece
+  // aprobar: ante la duda es más seguro no pedirle nada.
+  if (document.requiere_aprobacion_cliente !== true) {
     return { status: "NO_REQUIERE", canDecide: false, decidedAt };
   }
 
