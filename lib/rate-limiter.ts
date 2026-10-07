@@ -1,6 +1,9 @@
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 20;
 const PASSWORD_RECOVERY_MAX_ATTEMPTS = 5;
+// Aprobación pública del Full Set: consultas (abrir la página, ver el PDF) y decisiones.
+const APPROVAL_VIEW_MAX_ATTEMPTS = 60;
+const APPROVAL_DECISION_MAX_ATTEMPTS = 20;
 const CLEANUP_INTERVAL_MS = 60_000;
 
 interface RateEntry {
@@ -56,6 +59,14 @@ export function checkLoginRateLimit(identifier: string) {
 
 export function checkPasswordRecoveryRateLimit(identifier: string) {
   return checkRateLimit(identifier, PASSWORD_RECOVERY_MAX_ATTEMPTS);
+}
+
+export function checkApprovalViewRateLimit(identifier: string) {
+  return checkRateLimit(identifier, APPROVAL_VIEW_MAX_ATTEMPTS);
+}
+
+export function checkApprovalDecisionRateLimit(identifier: string) {
+  return checkRateLimit(identifier, APPROVAL_DECISION_MAX_ATTEMPTS);
 }
 
 export function resetLoginRateLimit(identifier: string): void {

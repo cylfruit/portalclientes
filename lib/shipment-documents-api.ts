@@ -40,6 +40,11 @@ export type DocumentsApiShipmentDocument = {
   updated_at: string | null;
   view_url: string | null;
   download_url: string | null;
+  /** Solo FULL_SET: PENDIENTE | APROBADO | RECHAZADO | NO_NECESITA_ENVIO. */
+  estado_aprobacion_cliente?: string | null;
+  fecha_aprobacion_cliente?: string | null;
+  /** Solo FULL_SET: false si Comex subió una versión más nueva. */
+  es_ultimo_full_set?: boolean;
 };
 
 export class ShipmentDocumentsApiError extends Error {
@@ -188,7 +193,7 @@ async function getDocumentsApiToken(forceRefresh = false) {
   return requestDocumentsApiToken();
 }
 
-async function fetchDocumentsApi(
+export async function fetchDocumentsApi(
   path: string,
   init: RequestInit,
   forceRefresh = false,

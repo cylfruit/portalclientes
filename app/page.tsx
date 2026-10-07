@@ -12,6 +12,7 @@ import {
 } from "@/lib/portal-data";
 import {
   filterRowsForPortalUser,
+  readCsrfTokenFromCookies,
   requireAuthenticatedPortalUser,
 } from "@/lib/auth";
 import { ClientHomeDashboard } from "@/components/client-home-dashboard";
@@ -159,6 +160,7 @@ export default async function Home() {
     trackingErrorMessage,
   } = await loadDashboardRows();
 
+  const csrfToken = await readCsrfTokenFromCookies();
   const heading = locale === "en" ? "Shipments" : "Embarques";
   const description =
     locale === "en"
@@ -176,6 +178,7 @@ export default async function Home() {
         defaultSeason={defaultSeason}
         errorMessage={errorMessage}
         trackingErrorMessage={trackingErrorMessage}
+        csrfToken={csrfToken}
       />
     </PortalShell>
   );
