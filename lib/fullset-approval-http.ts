@@ -3,8 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireValidCsrfToken } from "@/lib/auth";
 import {
   FullSetApprovalApiError,
+  type ApprovalImage,
 } from "@/lib/fullset-approval-api";
-import { getClientIp } from "@/lib/fullset-approval-input";
+import {
+  MAX_DECISION_REQUEST_BYTES,
+  MAX_IMAGES_PER_DOCUMENT,
+  MAX_IMAGES_PER_REQUEST,
+  MAX_IMAGE_BYTES,
+  detectImageType,
+  getClientIp,
+} from "@/lib/fullset-approval-input";
 import {
   checkApprovalDecisionRateLimit,
   checkApprovalViewRateLimit,
@@ -66,6 +74,121 @@ export async function readJsonBody(
   }
 }
 
+const MAX_PAYLOAD_CHARS = 64 * 1024;
+const IMAGE_FIELD = /^imagenes(_[1-9][0-9]{0,9})?$/;
+
+function safeImageName(name: string) {
+  const base = (name.split(/[\\/]/).pop() ?? "")
+    .replace(/[^\w.\- ()]/g, "_")
+    .slice(0, 120);
+  return base || "imagen";
+}
+
+/**
+ * Lee una respuesta del cliente: JSON (sin imágenes) o multipart (JSON en
+ * "payload" + imágenes). Cada imagen se valida por su CONTENIDO antes de
+ * reenviarla; el backend vuelve a validar todo.
+ */
+export async function readDecisionRequest(
+  request: NextRequest,
+): Promise<
+  | { body: Record<string, unknown>; images: ApprovalImage[] }
+  | { response: NextResponse }
+> {
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (!contentType.startsWith("multipart/form-data")) {
+    const parsed = await readJsonBody(request);
+    return "response" in parsed ? parsed : { body: parsed.body, images: [] };
+  }
+
+  // Sin tamaño declarado no se lee: formData() cargaría todo en memoria.
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (!Number.isFinite(declaredLength) || declaredLength <= 0) {
+    return { response: messageResponse("Falta el tamaño de la solicitud.", 411) };
+  }
+  if (declaredLength > MAX_DECISION_REQUEST_BYTES) {
+    return {
+      response: messageResponse(
+        "La solicitud es demasiado grande. Adjunta menos imágenes o más livianas.",
+        413,
+        "IMAGENES_INVALIDAS",
+      ),
+    };
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return { response: messageResponse("La solicitud no tiene un formato valido.", 400) };
+  }
+
+  const rawPayload = form.get("payload");
+  let body: Record<string, unknown>;
+  try {
+    if (typeof rawPayload !== "string" || rawPayload.length > MAX_PAYLOAD_CHARS) {
+      throw new Error("payload");
+    }
+    const parsed: unknown = JSON.parse(rawPayload);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("payload");
+    }
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return { response: messageResponse("La solicitud no tiene un formato valido.", 400) };
+  }
+
+  const images: ApprovalImage[] = [];
+  const perField = new Map<string, number>();
+
+  for (const [field, value] of form.entries()) {
+    if (field === "payload") continue;
+
+    if (typeof value === "string" || !IMAGE_FIELD.test(field)) {
+      return { response: messageResponse("La solicitud no tiene un formato valido.", 400) };
+    }
+
+    const count = (perField.get(field) ?? 0) + 1;
+    perField.set(field, count);
+    if (count > MAX_IMAGES_PER_DOCUMENT || images.length >= MAX_IMAGES_PER_REQUEST) {
+      return {
+        response: messageResponse(
+          `Puedes adjuntar hasta ${MAX_IMAGES_PER_DOCUMENT} imágenes por documento.`,
+          400,
+          "IMAGENES_INVALIDAS",
+        ),
+      };
+    }
+
+    if (value.size <= 0 || value.size > MAX_IMAGE_BYTES) {
+      return {
+        response: messageResponse(
+          "Cada imagen puede pesar hasta 5 MB.",
+          413,
+          "IMAGENES_INVALIDAS",
+        ),
+      };
+    }
+
+    const bytes = new Uint8Array(await value.arrayBuffer());
+    const type = detectImageType(bytes);
+    if (!type) {
+      return {
+        response: messageResponse(
+          "Solo se aceptan imágenes PNG, JPG o WebP.",
+          415,
+          "IMAGENES_INVALIDAS",
+        ),
+      };
+    }
+
+    images.push({ field, name: safeImageName(value.name), type, bytes });
+  }
+
+  return { body, images };
+}
+
 function shortHash(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
@@ -78,11 +201,15 @@ export function guardPublicApprovalRequest(
   request: NextRequest,
   body: Record<string, unknown>,
   kind: "view" | "decision",
+  scope: "all" | "ip" | "token" = "all",
 ) {
-  const csrfResponse = requireValidCsrfToken(
-    request,
-    typeof body.csrfToken === "string" ? body.csrfToken : null,
-  );
+  // El CSRF llega en el body (JSON) o en la cabecera (multipart, que se valida
+  // ANTES de leer un cuerpo que puede pesar varios MB).
+  const submittedCsrf =
+    typeof body.csrfToken === "string"
+      ? body.csrfToken
+      : request.headers.get("x-csrf-token");
+  const csrfResponse = requireValidCsrfToken(request, submittedCsrf);
 
   if (csrfResponse) {
     return csrfResponse;
@@ -93,12 +220,16 @@ export function guardPublicApprovalRequest(
       ? checkApprovalDecisionRateLimit
       : checkApprovalViewRateLimit;
   const clientIp = getClientIp(request.headers);
+  const keys: string[] = [];
+
   // Sin IP conocida no se limita por IP: todos compartirían la misma clave y un
   // cliente podría bloquear a los demás.
-  const keys = clientIp === "unknown" ? [] : [`approval:${kind}:ip:${clientIp}`];
+  if (scope !== "token" && clientIp !== "unknown") {
+    keys.push(`approval:${kind}:ip:${clientIp}`);
+  }
 
   // Aunque lleguen desde muchas IPs, un mismo token no puede ser sondeado sin límite.
-  if (typeof body.token === "string" && body.token) {
+  if (scope !== "ip" && typeof body.token === "string" && body.token) {
     keys.push(`approval:${kind}:token:${shortHash(body.token)}`);
   }
 

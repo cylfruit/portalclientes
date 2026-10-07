@@ -45,6 +45,11 @@ export type DocumentsApiShipmentDocument = {
   fecha_aprobacion_cliente?: string | null;
   /** Solo FULL_SET: false si Comex subió una versión más nueva. */
   es_ultimo_full_set?: boolean;
+  /**
+   * Solo FULL_SET: true si el cliente debe aprobarlo (mercado China y transporte no
+   * aéreo). false/null: queda aprobado por defecto y no se le pide respuesta.
+   */
+  requiere_aprobacion_cliente?: boolean | null;
 };
 
 export class ShipmentDocumentsApiError extends Error {

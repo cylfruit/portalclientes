@@ -8,7 +8,7 @@ import {
   jsonResponse,
   mapApprovalError,
   messageResponse,
-  readJsonBody,
+  readDecisionRequest,
 } from "@/lib/fullset-approval-http";
 import {
   MAX_DECISIONS_PER_REQUEST,
@@ -71,7 +71,8 @@ function normalizeDecisions(value: unknown): NormalizedDecision[] | null {
     result.push({
       documentoId,
       decision,
-      ...(decision === "RECHAZADO" ? { observaciones: comment } : {}),
+      // Al aprobar las observaciones son opcionales (p. ej. una dirección).
+      ...(comment ? { observaciones: comment } : {}),
     });
   }
 
@@ -79,14 +80,33 @@ function normalizeDecisions(value: unknown): NormalizedDecision[] | null {
 }
 
 export async function POST(request: NextRequest) {
-  const parsed = await readJsonBody(request);
+  const isMultipart = (request.headers.get("content-type") ?? "")
+    .toLowerCase()
+    .startsWith("multipart/form-data");
+
+  // Con imágenes, el CSRF (cabecera) y el límite por IP se revisan ANTES de leer
+  // un cuerpo de varios MB.
+  if (isMultipart) {
+    const preGuard = guardPublicApprovalRequest(request, {}, "decision", "ip");
+
+    if (preGuard) {
+      return preGuard;
+    }
+  }
+
+  const parsed = await readDecisionRequest(request);
 
   if ("response" in parsed) {
     return parsed.response;
   }
 
-  const { body } = parsed;
-  const guard = guardPublicApprovalRequest(request, body, "decision");
+  const { body, images } = parsed;
+  const guard = guardPublicApprovalRequest(
+    request,
+    body,
+    "decision",
+    isMultipart ? "token" : "all",
+  );
 
   if (guard) {
     return guard;
@@ -119,11 +139,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Cada imagen tiene que ser de un documento que se está respondiendo.
+  const decidedFields = new Set(
+    decisions.map((decision) => `imagenes_${decision.documentoId}`),
+  );
+
+  if (images.some((image) => !decidedFields.has(image.field))) {
+    return messageResponse(
+      "Hay una imagen asociada a un documento que no corresponde.",
+      400,
+      "SOLICITUD_INVALIDA",
+    );
+  }
+
   try {
     const data = await decideByApprovalLink({
       token: body.token,
       decisions,
       approver,
+      images,
       context: {
         ip: getClientIp(request.headers),
         userAgent: truncateUserAgent(request.headers.get("user-agent")),

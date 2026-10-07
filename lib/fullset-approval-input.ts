@@ -113,3 +113,68 @@ export function buildApprover(input: { name: unknown; email: unknown }) {
     email: normalizeApproverEmail(input.email),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Imágenes adjuntas (p. ej. pantallazo de un error en el documento)   */
+/* ------------------------------------------------------------------ */
+
+export const MAX_IMAGES_PER_DOCUMENT = 3;
+export const MAX_IMAGES_PER_REQUEST = 10;
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** Tope del cuerpo de una respuesta con imágenes (las imágenes + el JSON). */
+export const MAX_DECISION_REQUEST_BYTES =
+  MAX_IMAGES_PER_REQUEST * MAX_IMAGE_BYTES + 64 * 1024;
+export const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+export type ImageType = "image/png" | "image/jpeg" | "image/webp";
+
+/**
+ * Tipo real de la imagen según su firma (primeros bytes). El tipo y la extensión
+ * que declara el navegador no se usan: un HTML renombrado a .png no pasa.
+ */
+export function detectImageType(bytes: Uint8Array): ImageType | null {
+  if (!bytes || bytes.length < 12) {
+    return null;
+  }
+
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (png.every((value, index) => bytes[index] === value)) {
+    return "image/png";
+  }
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  const ascii = (start: number, end: number) =>
+    String.fromCharCode(...bytes.slice(start, end));
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") {
+    return "image/webp";
+  }
+
+  return null;
+}
+
+export type ImageCheckError =
+  | "TOO_MANY_PER_DOCUMENT"
+  | "TOO_MANY"
+  | "TOO_BIG"
+  | "EMPTY"
+  | "NOT_AN_IMAGE";
+
+/** Validación previa en el navegador (el servidor vuelve a validar el contenido). */
+export function checkImageSelection(
+  files: { size: number; type: string }[],
+  totalAlreadySelected = 0,
+): ImageCheckError | null {
+  if (files.length > MAX_IMAGES_PER_DOCUMENT) return "TOO_MANY_PER_DOCUMENT";
+  if (totalAlreadySelected > MAX_IMAGES_PER_REQUEST) return "TOO_MANY";
+
+  for (const file of files) {
+    if (file.size <= 0) return "EMPTY";
+    if (file.size > MAX_IMAGE_BYTES) return "TOO_BIG";
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) return "NOT_AN_IMAGE";
+  }
+
+  return null;
+}

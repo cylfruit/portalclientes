@@ -78,14 +78,52 @@ type BackendEnvelope<T> = {
 
 const BASE = "/api/fullset-approval";
 
-async function postJson<T>(path: string, body: unknown) {
+/** Imagen ya validada por contenido, lista para reenviar al backend. */
+export type ApprovalImage = {
+  field: string;
+  name: string;
+  type: string;
+  bytes: Uint8Array;
+};
+
+/**
+ * Sin imágenes la decisión viaja como JSON (como siempre). Con imágenes viaja como
+ * multipart: el JSON en el campo "payload" y cada imagen en su campo.
+ */
+function buildBody(body: unknown, images: ApprovalImage[]): RequestInit {
+  if (images.length === 0) {
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
+  }
+
+  const form = new FormData();
+  form.append("payload", JSON.stringify(body));
+
+  for (const image of images) {
+    form.append(
+      image.field,
+      new Blob([image.bytes as BlobPart], { type: image.type }),
+      image.name,
+    );
+  }
+
+  // Sin Content-Type: fetch arma el boundary del multipart.
+  return { body: form };
+}
+
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  images: ApprovalImage[] = [],
+) {
   let response: Response;
 
   try {
     response = await fetchDocumentsApi(`${BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      ...buildBody(body, images),
     });
   } catch (error) {
     if (error instanceof ShipmentDocumentsApiError) {
@@ -173,6 +211,8 @@ export function decideByApprovalLink(input: {
   }[];
   approver: ApproverPayload;
   context: ClientContext;
+  /** Campo "imagenes_<documentoId>" por cada imagen. */
+  images?: ApprovalImage[];
 }) {
   return postJson<{ resultados: ApprovalDecisionResult[] }>(
     "/portal/enlace/decision",
@@ -182,6 +222,7 @@ export function decideByApprovalLink(input: {
       aprobador: input.approver,
       contexto: input.context,
     },
+    input.images ?? [],
   );
 }
 
@@ -193,6 +234,8 @@ export function decideFromPortal(input: {
   comment?: string;
   approver: ApproverPayload;
   context: ClientContext;
+  /** Campo "imagenes" por cada imagen. */
+  images?: ApprovalImage[];
 }) {
   return postJson<{ decision: ApprovalDecision }>(
     `/portal/embarques/${encodeURIComponent(String(input.shipmentId))}/decision`,
@@ -204,5 +247,6 @@ export function decideFromPortal(input: {
       aprobador: input.approver,
       contexto: input.context,
     },
+    input.images ?? [],
   );
 }
