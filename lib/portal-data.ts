@@ -617,18 +617,42 @@ export function isShipmentArrived(
   );
 }
 
-function resolveShipmentStatus(row: EmbarqueRow): ShipmentSummary["status"] {
+function resolveShipmentStatusFromDates(dates: {
+  ata: string | null;
+  eta: string | null;
+  atd: string | null;
+}): ShipmentSummary["status"] {
   // Some view rows expose ETA instead of ATA. Once that arrival date has passed,
   // an old tracking snapshot must not keep the shipment in transit.
-  if (isEmbarqueRowArrived(row)) {
+  if (isDateOnOrBeforeToday(dates.ata ?? dates.eta)) {
     return "Arribado";
   }
 
-  if (isDateOnOrBeforeToday(row.Fecha_ATD)) {
+  if (isDateOnOrBeforeToday(dates.atd)) {
     return "En transito";
   }
 
   return "Programado";
+}
+
+function resolveShipmentStatus(row: EmbarqueRow): ShipmentSummary["status"] {
+  return resolveShipmentStatusFromDates({
+    ata: row.Fecha_ATA,
+    eta: row.Fecha_ETA,
+    atd: row.Fecha_ATD,
+  });
+}
+
+/**
+ * Recalcula el estado de un resumen con el reloj de quien lo llama. El servidor
+ * entrega los embarques ya agrupados (en vez de miles de filas por pallet) y el
+ * navegador reevalúa el estado con SU fecha, igual que cuando agrupaba él mismo.
+ * Equivale exactamente a `resolveShipmentStatus` sobre la primera fila del grupo.
+ */
+export function refreshShipmentStatus<T extends Pick<ShipmentSummary, "ata" | "eta" | "atd">>(
+  shipment: T,
+): T & { status: ShipmentSummary["status"] } {
+  return { ...shipment, status: resolveShipmentStatusFromDates(shipment) };
 }
 
 function buildShipmentGroupKey(row: EmbarqueRow) {

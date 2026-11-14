@@ -3,6 +3,8 @@ import {
   requireAuthenticatedApiUser,
   filterRowsForPortalUser,
 } from "@/lib/auth";
+import { buildShipmentsFromRows } from "@/lib/portal-data";
+import { resolveRecipientScope } from "@/lib/shipment-scope";
 import {
   fetchEmbarqueRowsWithSeasonFallback,
   fetchEmbarqueSeasons,
@@ -40,9 +42,20 @@ export async function GET(request: NextRequest) {
     season: resolvedSeason,
     search: search ?? null,
     seasons,
+    scope: resolveRecipientScope(user),
   });
 
   const filteredRows = filterRowsForPortalUser(rows, user);
+
+  // `format=summary` (lo usa el dashboard) devuelve un resumen por embarque en vez de
+  // una fila por pallet. Sin el parámetro se mantiene el formato original.
+  if (searchParams.get("format") === "summary") {
+    return NextResponse.json({
+      shipments: buildShipmentsFromRows(filteredRows),
+      seasons,
+      defaultSeason: resolvedSeason,
+    });
+  }
 
   return NextResponse.json({
     rows: filteredRows,

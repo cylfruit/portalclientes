@@ -124,6 +124,7 @@ export async function PortalShell({
             <Image
               src="/brand/bg_intranet.jpg"
               alt=""
+              quality={45}
               fill
               loading="eager"
               sizes="100vw"
@@ -240,6 +241,7 @@ export async function PortalShell({
           <Image
             src="/brand/bg_login.jpg"
             alt=""
+            quality={45}
             fill
             priority
             sizes="100vw"
@@ -360,6 +362,7 @@ export async function PortalShell({
           <Image
             src="/brand/bg_intranet.jpg"
             alt=""
+            quality={45}
             loading="eager"
             fill
             sizes="100vw"

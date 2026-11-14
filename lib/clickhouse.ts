@@ -17,6 +17,13 @@ import {
   type PortalClientUserStatus,
 } from "@/lib/portal-users";
 
+import {
+  buildRecipientScopeCondition,
+  buildRecipientScopeKey,
+  type RecipientScope,
+} from "@/lib/shipment-scope";
+import { createTtlCache } from "@/lib/ttl-cache";
+
 const SHIPMENT_COLUMNS = [
   "NroEmbarque",
   "CodigoTemporada",
@@ -750,6 +757,11 @@ function normalizePasswordResetTokenRecord(
 type ShipmentsQueryOptions = {
   season?: string | null;
   search?: string | null;
+  /**
+   * Prefiltro por recibidor (ver lib/shipment-scope.ts). `filterRowsForPortalUser`
+   * debe seguir aplicándose después: es quien decide qué ve cada usuario.
+   */
+  scope?: RecipientScope | null;
 };
 
 type ShipmentsFallbackQueryOptions = ShipmentsQueryOptions & {
@@ -848,13 +860,7 @@ function buildSeasonCandidates(
   return candidates;
 }
 
-function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
-  const view = escapeIdentifier(
-    process.env.CLICKHOUSE_VIEW?.trim() || "vw_Embarques_pc",
-  );
-  const limit = Number(process.env.CLICKHOUSE_QUERY_LIMIT || "500");
-  const safeLimit =
-    Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 500;
+function buildShipmentConditions(options: ShipmentsQueryOptions = {}) {
   const season =
     options.season?.trim() ?? DEFAULT_EMBARQUE_SEASON;
   const search = options.search?.trim() ?? null;
@@ -871,6 +877,48 @@ function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
     );
   }
 
+  return conditions;
+}
+
+function getShipmentsView() {
+  return escapeIdentifier(
+    process.env.CLICKHOUSE_VIEW?.trim() || "vw_Embarques_pc",
+  );
+}
+
+// ¿Hay al menos un embarque en esa temporada? Consulta mínima: sirve para decidir el
+// fallback de temporada sin descargar la temporada completa.
+function buildSeasonHasRowsQuery(options: ShipmentsQueryOptions = {}) {
+  const conditions = buildShipmentConditions(options);
+
+  return [
+    "SELECT 1 AS has_rows",
+    `FROM ${getShipmentsView()}`,
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "",
+    "LIMIT 1",
+    "FORMAT JSON",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
+  const view = getShipmentsView();
+  const limit = Number(process.env.CLICKHOUSE_QUERY_LIMIT || "500");
+  const safeLimit =
+    Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 500;
+  const conditions = buildShipmentConditions(options);
+  // El prefiltro va en el SELECT final, DESPUÉS de calcular la ventana de los N
+  // embarques más recientes de toda la temporada: así el resultado es el mismo que
+  // filtrar en la app, pero sin descargar las filas de los demás recibidores.
+  const scopeCondition = buildRecipientScopeCondition(
+    options.scope ?? null,
+    escapeStringLiteral,
+    {
+      codeColumn: "shipment_source.CodRecibidor",
+      groupColumn: "shipment_source.CodigoGrupoRecibidor",
+    },
+  );
   const whereClause =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
   const shipmentKeyColumns = [
@@ -908,6 +956,7 @@ function buildShipmentsQuery(options: ShipmentsQueryOptions = {}) {
     `SELECT ${SHIPMENT_COLUMNS.map((column) => `shipment_source.${column}`).join(", ")}`,
     "FROM shipment_source",
     `INNER JOIN shipment_window USING (${shipmentKeyColumns.join(", ")})`,
+    scopeCondition ? `WHERE ${scopeCondition}` : "",
     "ORDER BY shipment_source.CodigoTemporada DESC, shipment_source.Fecha_ETD DESC, shipment_source.NroEmbarque DESC",
     "FORMAT JSON",
   ]
@@ -1122,6 +1171,9 @@ async function executeClickHouseJsonQuery(query: string) {
   const url = new URL(`${protocol}://${host}:${port}/`);
 
   url.searchParams.set("database", database);
+  // Respuesta comprimida (gzip): la temporada completa pasa de ~20 MB a ~350 KB por la
+  // red. Node la descomprime solo; no cambia el formato del resultado.
+  url.searchParams.set("enable_http_compression", "1");
 
   const response = await fetch(url, {
     method: "POST",
@@ -1185,16 +1237,93 @@ async function executeClickHouseCommand(query: string) {
   return response.text();
 }
 
+function readCacheTtlMs(name: string, fallbackMs: number) {
+  const raw = process.env[name]?.trim();
+
+  if (!raw) {
+    return fallbackMs;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.trunc(parsed) : fallbackMs;
+}
+
+function warnStaleServed(label: string) {
+  return (key: string, error: unknown) => {
+    console.warn(
+      `ClickHouse ${label} no disponible; se sirve el último resultado en caché (${key}).`,
+      error,
+    );
+  };
+}
+
+// Cachés de proceso (ver lib/ttl-cache.ts). TTL en ms por variable de entorno; 0 los
+// desactiva. Los datos de embarques los carga un ETL, así que unos segundos de desfase
+// son aceptables y evitan repetir una consulta de varios segundos por cada visita.
+const shipmentRowsCache = createTtlCache<EmbarqueRow[]>({
+  ttlMs: readCacheTtlMs("CLICKHOUSE_SHIPMENTS_CACHE_TTL_MS", 30_000),
+  maxEntries: 24,
+  staleIfErrorMs: 5 * 60_000,
+  onStaleServed: warnStaleServed("embarques"),
+});
+const seasonHasRowsCache = createTtlCache<boolean>({
+  ttlMs: readCacheTtlMs("CLICKHOUSE_SHIPMENTS_CACHE_TTL_MS", 30_000) * 2,
+  maxEntries: 64,
+});
+const seasonsCache = createTtlCache<ShipmentSeasonOption[]>({
+  ttlMs: readCacheTtlMs("CLICKHOUSE_SEASONS_CACHE_TTL_MS", 5 * 60_000),
+  maxEntries: 1,
+  staleIfErrorMs: 60 * 60_000,
+  onStaleServed: warnStaleServed("temporadas"),
+});
+const trackingSnapshotsCache = createTtlCache<ContainerTrackingSnapshot[]>({
+  ttlMs: readCacheTtlMs("CLICKHOUSE_TRACKING_CACHE_TTL_MS", 60_000),
+  maxEntries: 32,
+  staleIfErrorMs: 10 * 60_000,
+  onStaleServed: warnStaleServed("tracking"),
+});
+
 export async function fetchEmbarqueRows(options: ShipmentsQueryOptions = {}) {
   if (options.season && isHiddenEmbarqueSeason(options.season)) {
     return [];
   }
 
-  const payload = await executeClickHouseJsonQuery(
-    buildShipmentsQuery(options),
-  );
+  const load = async () => {
+    const payload = await executeClickHouseJsonQuery(
+      buildShipmentsQuery(options),
+    );
 
-  return payload.data.map(normalizeRow);
+    return payload.data.map(normalizeRow);
+  };
+
+  // Las búsquedas libres no se cachean para no llenar el caché con texto arbitrario.
+  if (options.search?.trim()) {
+    return load();
+  }
+
+  return shipmentRowsCache.get(
+    JSON.stringify([
+      options.season?.trim() ?? null,
+      buildRecipientScopeKey(options.scope ?? null),
+    ]),
+    load,
+  );
+}
+
+async function fetchSeasonHasRows(options: ShipmentsQueryOptions) {
+  const load = async () => {
+    const payload = await executeClickHouseJsonQuery(
+      buildSeasonHasRowsQuery(options),
+    );
+
+    return payload.data.length > 0;
+  };
+
+  if (options.search?.trim()) {
+    return load();
+  }
+
+  return seasonHasRowsCache.get(options.season?.trim() ?? "", load);
 }
 
 export async function fetchEmbarqueRowsWithSeasonFallback(
@@ -1207,6 +1336,32 @@ export async function fetchEmbarqueRowsWithSeasonFallback(
   }
 
   const seasonCandidates = buildSeasonCandidates(season, options.seasons ?? []);
+
+  if (options.scope) {
+    // Con prefiltro, "la temporada vacía" debe seguir significando vacía para TODOS los
+    // recibidores (como antes), no solo para este usuario. Se decide con una consulta
+    // mínima y recién entonces se descargan las filas del usuario.
+    for (const seasonCandidate of seasonCandidates) {
+      if (isHiddenEmbarqueSeason(seasonCandidate)) {
+        continue;
+      }
+
+      const hasRows = await fetchSeasonHasRows({
+        season: seasonCandidate,
+        search: options.search ?? null,
+      });
+
+      if (hasRows) {
+        return fetchEmbarqueRows({
+          season: seasonCandidate,
+          search: options.search ?? null,
+          scope: options.scope,
+        });
+      }
+    }
+
+    return [] as EmbarqueRow[];
+  }
 
   let lastRows: EmbarqueRow[] = [];
 
@@ -1234,7 +1389,11 @@ export function resolveDefaultEmbarqueSeasonCode(
   );
 }
 
-export async function fetchEmbarqueSeasons(): Promise<ShipmentSeasonOption[]> {
+export function fetchEmbarqueSeasons(): Promise<ShipmentSeasonOption[]> {
+  return seasonsCache.get("seasons", loadEmbarqueSeasons);
+}
+
+async function loadEmbarqueSeasons(): Promise<ShipmentSeasonOption[]> {
   const table = escapeIdentifier(
     process.env.CLICKHOUSE_SEASONS_TABLE?.trim() || "default.TEMPORADAS",
   );
@@ -1278,14 +1437,16 @@ export async function fetchContainerTrackingSnapshots(
     return [];
   }
 
-  const payload = await executeClickHouseJsonQuery(query);
+  return trackingSnapshotsCache.get(query, async () => {
+    const payload = await executeClickHouseJsonQuery(query);
 
-  return payload.data
-    .map(normalizeTrackingSnapshot)
-    .filter(
-      (trackingSnapshot): trackingSnapshot is ContainerTrackingSnapshot =>
-        trackingSnapshot !== null,
-    );
+    return payload.data
+      .map(normalizeTrackingSnapshot)
+      .filter(
+        (trackingSnapshot): trackingSnapshot is ContainerTrackingSnapshot =>
+          trackingSnapshot !== null,
+      );
+  });
 }
 
 export async function fetchVesselTrackingSnapshots(vesselNames: string[]) {
@@ -1295,14 +1456,16 @@ export async function fetchVesselTrackingSnapshots(vesselNames: string[]) {
     return [];
   }
 
-  const payload = await executeClickHouseJsonQuery(query);
+  return trackingSnapshotsCache.get(query, async () => {
+    const payload = await executeClickHouseJsonQuery(query);
 
-  return payload.data
-    .map(normalizeTrackingSnapshot)
-    .filter(
-      (trackingSnapshot): trackingSnapshot is ContainerTrackingSnapshot =>
-        trackingSnapshot !== null,
-    );
+    return payload.data
+      .map(normalizeTrackingSnapshot)
+      .filter(
+        (trackingSnapshot): trackingSnapshot is ContainerTrackingSnapshot =>
+          trackingSnapshot !== null,
+      );
+  });
 }
 
 export async function fetchPortalClientUserRecords(

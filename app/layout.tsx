@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
-import "leaflet/dist/leaflet.css";
-import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { getPublicSiteUrl } from "@/lib/site-url";
 
@@ -89,6 +87,13 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <link
+          rel="preload"
+          href="/fonts/montserrat-latin-v1.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <script
           data-cfasync="false"
           nonce={nonce}
@@ -99,7 +104,7 @@ export default async function RootLayout({
           <Script
             id="microsoft-clarity"
             src={`https://www.clarity.ms/tag/${clarityProjectId}`}
-            strategy="afterInteractive"
+            strategy="lazyOnload"
             nonce={nonce}
           />
         ) : null}

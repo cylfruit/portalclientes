@@ -10,6 +10,7 @@ import {
   buildShipmentsFromRows,
   isShipmentArrived,
 } from "@/lib/portal-data";
+import { resolveRecipientScope } from "@/lib/shipment-scope";
 import {
   filterRowsForPortalUser,
   readCsrfTokenFromCookies,
@@ -40,9 +41,13 @@ async function loadDashboardRows() {
     const rawRows = await fetchEmbarqueRowsWithSeasonFallback({
       season: defaultSeason,
       seasons,
+      scope: resolveRecipientScope(currentUser),
     });
     const rows = filterRowsForPortalUser(rawRows, currentUser);
-    const trackableShipments = buildShipmentsFromRows(rows).filter(
+    // Se agrupa aquí una sola vez: al navegador viaja un resumen por embarque, no una
+    // fila por pallet (miles de filas para usuarios que ven toda la temporada).
+    const shipments = buildShipmentsFromRows(rows);
+    const trackableShipments = shipments.filter(
       (shipment) => !isShipmentArrived(shipment),
     );
     const containers = Array.from(
@@ -120,7 +125,7 @@ async function loadDashboardRows() {
     }
 
     return {
-      rows,
+      shipments,
       trackingSnapshots,
       vesselTrackingSnapshots,
       locale,
@@ -133,7 +138,7 @@ async function loadDashboardRows() {
     console.error("Failed to load shipment rows from ClickHouse", error);
 
     return {
-      rows: [],
+      shipments: [],
       trackingSnapshots: [],
       vesselTrackingSnapshots: [],
       locale,
@@ -150,7 +155,7 @@ async function loadDashboardRows() {
 
 export default async function Home() {
   const {
-    rows,
+    shipments,
     trackingSnapshots,
     vesselTrackingSnapshots,
     locale,
@@ -171,7 +176,7 @@ export default async function Home() {
     <PortalShell activePath="/" heading={heading} description={description}>
       <ClientHomeDashboard
         locale={locale}
-        rows={rows}
+        shipments={shipments}
         trackingSnapshots={trackingSnapshots}
         vesselTrackingSnapshots={vesselTrackingSnapshots}
         seasons={seasons}

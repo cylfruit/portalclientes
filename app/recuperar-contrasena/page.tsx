@@ -31,7 +31,7 @@ export default async function ForgotPasswordPage({
   return (
     <main className="relative min-h-screen overflow-hidden bg-cyl-bg text-cyl-ink">
       <div className="absolute inset-0">
-        <Image src="/brand/bg_login.jpg" alt="" fill priority sizes="100vw" className="object-cover opacity-20" />
+        <Image src="/brand/bg_login.jpg" alt="" quality={45} fill priority sizes="100vw" className="object-cover opacity-20" />
         <div className="absolute inset-0 bg-[linear-gradient(125deg,rgba(0,0,0,0.92),rgba(18,18,18,0.84),rgba(18,18,18,0.72))]" />
       </div>
       <div className="fixed right-4 top-4 z-20">

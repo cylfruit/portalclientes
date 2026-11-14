@@ -1,19 +1,36 @@
 @import "tailwindcss";
 
+/* Fuentes en woff2 y recortadas a latín (~114 KB y ~52 KB en vez de ~690 KB y ~118 KB
+   en TTF). Los nombres llevan versión porque se sirven con caché inmutable: si se
+   cambia el archivo, cambiar también el nombre (ver next.config.ts). */
+@font-face {
+  font-family: "MontserratPortal";
+  src: url("/fonts/montserrat-latin-v1.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-024F, U+0259, U+1E00-1EFF, U+2010-2027, U+2030-203A,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Cirílico: solo se descarga el TTF original si algún texto lo usa. */
 @font-face {
   font-family: "MontserratPortal";
   src: url("/brand/Montserrat-VariableFont_wght.ttf") format("truetype");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
 }
 
 @font-face {
   font-family: "StonerPortal";
-  src: url("/brand/stoner.ttf") format("truetype");
+  src: url("/fonts/stoner-latin-v1.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-024F, U+0259, U+1E00-1EFF, U+2010-2027, U+2030-203A,
+    U+20AC, U+2122, U+2190-2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
