@@ -30,6 +30,7 @@ export default async function FullSetApprovalPage() {
         <Image
           src="/brand/bg_login.jpg"
           alt=""
+          quality={45}
           fill
           priority
           sizes="100vw"

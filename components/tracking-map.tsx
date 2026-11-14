@@ -1,5 +1,9 @@
 "use client";
 
+// El CSS del mapa (~80 KB) se carga junto con este componente, no en todas las
+// páginas: antes iba en el layout y bloqueaba el render incluso en /login.
+import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { Fragment, memo, useMemo, useEffect, useRef, useState } from "react";
 import {
   divIcon,

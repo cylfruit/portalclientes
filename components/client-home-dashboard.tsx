@@ -9,18 +9,17 @@ import {
   useCallback,
   useDeferredValue,
 } from "react";
-import dynamic from "next/dynamic";
+import { LazyTrackingMap } from "@/components/lazy-tracking-map";
 import {
   FullSetPortalApproval,
   type FullSetApprovalInfo,
 } from "@/components/fullset-portal-approval";
 import {
-  buildShipmentsFromRows,
   type ContainerTrackingSnapshot,
   formatDate,
   formatNumber,
-  type EmbarqueRow,
   isShipmentArrived,
+  refreshShipmentStatus,
   type ShipmentSeasonOption,
   type ShipmentSummary,
   type TrackedShipmentItem,
@@ -32,10 +31,6 @@ import {
   selectConfirmedTracking,
 } from "@/lib/tracking-eligibility";
 
-const TrackingMap = dynamic(
-  () => import("@/components/tracking-map").then((m) => m.TrackingMap),
-  { ssr: false },
-);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,7 +106,8 @@ const EMPTY_DOCS_STATE: ShipmentDocumentsLoadState = {
 
 export type ClientHomeDashboardProps = {
   locale: PortalLocale;
-  rows: EmbarqueRow[];
+  /** Un resumen por embarque, ya agrupado por el servidor. */
+  shipments: ShipmentSummary[];
   trackingSnapshots: ContainerTrackingSnapshot[];
   vesselTrackingSnapshots: ContainerTrackingSnapshot[];
   seasons: ShipmentSeasonOption[];
@@ -1656,10 +1652,11 @@ function ShipmentExpandedRow({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
+const SEASON_CLIENT_CACHE_MS = 60_000;
 
 export function ClientHomeDashboard({
   locale,
-  rows: initialRows,
+  shipments: initialShipments,
   trackingSnapshots,
   vesselTrackingSnapshots,
   seasons: initialSeasons,
@@ -1670,7 +1667,13 @@ export function ClientHomeDashboard({
 }: ClientHomeDashboardProps) {
   const copy = dashboardCopy[locale];
 
-  const [rows, setRows] = useState<EmbarqueRow[]>(initialRows);
+  const [serverShipments, setServerShipments] =
+    useState<ShipmentSummary[]>(initialShipments);
+  // Temporadas ya descargadas en esta sesión (con su hora), para no repetir la
+  // petición si el usuario vuelve a una temporada que acaba de ver.
+  const seasonCacheRef = useRef(
+    new Map<string, { shipments: ShipmentSummary[]; loadedAt: number }>(),
+  );
   const [selectedSeason, setSelectedSeason] = useState<string>(
     defaultSeason ?? initialSeasons[0]?.code ?? "",
   );
@@ -1703,7 +1706,12 @@ export function ClientHomeDashboard({
   }, [currentPage, expandedKey]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const allShipments = useMemo(() => buildShipmentsFromRows(rows), [rows]);
+  // El estado (programado / en tránsito / arribado) depende de la fecha de hoy: se
+  // reevalúa aquí con el reloj del navegador, como cuando agrupaba las filas él mismo.
+  const allShipments = useMemo(
+    () => serverShipments.map(refreshShipmentStatus),
+    [serverShipments],
+  );
   const selectedSeasonFilterValues = useMemo(
     () => buildSeasonFilterValues(selectedSeason, initialSeasons),
     [initialSeasons, selectedSeason],
@@ -1968,20 +1976,33 @@ export function ClientHomeDashboard({
     setIsLoadingSeason(true);
 
     try {
+      const cached = seasonCacheRef.current.get(season);
+
+      if (cached && Date.now() - cached.loadedAt < SEASON_CLIENT_CACHE_MS) {
+        setServerShipments(cached.shipments);
+        return;
+      }
+
       const response = await fetch(
-        `/api/embarques?season=${encodeURIComponent(season)}`,
+        `/api/embarques?season=${encodeURIComponent(season)}&format=summary`,
         { method: "GET", cache: "no-store" },
       );
 
       if (response.ok) {
-        const data = (await response.json()) as { rows?: EmbarqueRow[] };
+        const data = (await response.json()) as {
+          shipments?: ShipmentSummary[];
+        };
 
-        if (Array.isArray(data.rows)) {
-          setRows(data.rows);
+        if (Array.isArray(data.shipments)) {
+          seasonCacheRef.current.set(season, {
+            shipments: data.shipments,
+            loadedAt: Date.now(),
+          });
+          setServerShipments(data.shipments);
         }
       }
     } catch {
-      // keep existing rows on error
+      // keep existing shipments on error
     } finally {
       setIsLoadingSeason(false);
     }
@@ -2364,7 +2385,7 @@ export function ClientHomeDashboard({
             className="overflow-hidden rounded-3xl border border-cyl-border shadow-[var(--cyl-shadow-lg)]"
             style={{ height: "420px" }}
           >
-            <TrackingMap
+            <LazyTrackingMap
               items={trackedItems}
               locale={locale}
               ariaLabel={copy.trackingMapDescription}

@@ -149,6 +149,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <Image
           src="/brand/bg_login.jpg"
           alt=""
+          quality={45}
           fill
           priority
           sizes="100vw"
